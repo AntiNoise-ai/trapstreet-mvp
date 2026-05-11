@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, sql as raw } from "drizzle-orm";
+import type { PgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/db/client";
 import {
   cases,
@@ -8,6 +9,8 @@ import {
   tasks,
   threads,
   type CaseRow,
+  type RankingDirection,
+  type RankingMetric,
   type RunRow,
   type TaskRow,
 } from "@/db/schema";
@@ -312,13 +315,53 @@ export type LeaderboardRow = {
   scored_at: string;
 };
 
+// Resolve a RankingMetric to the Drizzle column it maps to.
+function metricColumn(m: RankingMetric): PgColumn {
+  switch (m) {
+    case "total_score":
+      return runs.total_score;
+    case "latency_ms":
+      return runs.latency_ms;
+    case "cost_usd":
+      return runs.cost_usd;
+    case "cases_passed":
+      return runs.cases_passed;
+  }
+}
+
 export async function leaderboardEntries(filter: {
   track?: string;
   task_id?: string;
+  // When ranking_metric is passed (e.g. from a task page), use it.
+  // Defaults to total_score DESC + (latency, cost) tiebreakers — the
+  // sensible all-up cross-task default for the home grid summary.
+  ranking_metric?: RankingMetric;
+  ranking_direction?: RankingDirection;
 }): Promise<LeaderboardRow[]> {
   const where = [eq(runs.status, "scored")];
   if (filter.task_id) where.push(eq(runs.task_id, filter.task_id));
   if (filter.track) where.push(eq(tasks.track, filter.track));
+
+  const metric = filter.ranking_metric ?? "total_score";
+  const direction = filter.ranking_direction ?? "desc";
+  const primary =
+    direction === "desc"
+      ? desc(metricColumn(metric))
+      : asc(metricColumn(metric));
+
+  // Tiebreakers — always include the other relevant columns so order is
+  // stable. We pick the inverse-direction of the primary metric so a
+  // score-ranked board breaks ties by speed/cost (lower better), and a
+  // latency-ranked board breaks ties by higher score.
+  const tiebreakers = (
+    metric === "total_score"
+      ? [asc(runs.latency_ms), asc(runs.cost_usd)]
+      : metric === "latency_ms"
+        ? [desc(runs.total_score), asc(runs.cost_usd)]
+        : metric === "cost_usd"
+          ? [desc(runs.total_score), asc(runs.latency_ms)]
+          : [desc(runs.total_score), asc(runs.latency_ms)]
+  );
 
   const rows = await db
     .select({
@@ -339,11 +382,7 @@ export async function leaderboardEntries(filter: {
     .innerJoin(tasks, eq(tasks.id, runs.task_id))
     .innerJoin(runners, eq(runners.id, runs.runner_id))
     .where(and(...where))
-    .orderBy(
-      desc(runs.total_score),
-      asc(runs.latency_ms),
-      asc(runs.cost_usd),
-    );
+    .orderBy(primary, ...tiebreakers);
 
   return rows.map((r, i) => ({
     rank: i + 1,

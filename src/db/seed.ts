@@ -19,6 +19,28 @@ async function main() {
         description:
           "Parse a real UK signed AST PDF. Extract rent, dates, clauses.",
         traptask_ref: "AntiNoise-ai/trapstreet-tasks/tasks/pdf_reader/tenancy_agreement",
+        ranking_metric: "total_score",
+        ranking_direction: "desc",
+        rules_md: `## Rules
+
+- **Answer verbatim.** Extract field values exactly as they appear in the
+  PDF. No paraphrasing dates or amounts.
+- **No fabrication.** If the field is not present in the source PDF,
+  return \`null\`. Any non-null guess on a missing field counts as wrong.
+- **Whitespace and casing are normalised** before comparison.
+- **Currency must include the symbol** (e.g. "£1,800") to match.
+- **Dates must be ISO-8601** (\`YYYY-MM-DD\`).
+
+## Disqualification
+
+- Hardcoded answers (i.e. the solution literally returns the expected
+  strings regardless of input) will be flagged on review and removed.
+
+## Tiebreaker
+
+Ties on score are broken by **\`cost_usd\` ascending** — cheaper wins.
+PDF tasks are expensive so cost matters more than latency here.
+`,
         created_at: new Date("2026-04-29T10:00:00Z"),
       },
       {
@@ -28,6 +50,29 @@ async function main() {
         description:
           "Read text from stdin, emit word frequencies and a summary JSON.",
         traptask_ref: "AntiNoise-ai/trap/examples/word-count",
+        ranking_metric: "total_score",
+        ranking_direction: "desc",
+        rules_md: `## Rules
+
+- **Deterministic output required.** Same input must always produce the
+  same JSON byte-for-byte. Solutions that use random sampling will fail
+  the \`case_insensitive\` and \`case_sensitive\` reproducibility checks.
+- **Handle empty input.** The \`empty\` case sends a zero-byte stdin —
+  output must be \`{"frequencies": {}, "top_words": [], "total": 0}\`.
+- **Respect \`config.case_sensitive\`.** When false, normalise to
+  lowercase before counting. When true, keep as-is.
+
+## Disqualification
+
+- Reading from disk instead of stdin counts as cheating (the runner
+  pipes stdin into your process; ignore that and you'll miss the
+  \`config\` file completely).
+
+## Tiebreaker
+
+Ties on score are broken by **\`latency_ms\` ascending**. Most solutions
+score 1.0, so this leaderboard is effectively a speed race.
+`,
         created_at: new Date("2026-04-30T10:00:00Z"),
       },
       {
@@ -37,6 +82,21 @@ async function main() {
         description:
           "Trivial smoke test — read {message} from stdin, print it back.",
         traptask_ref: "AntiNoise-ai/trap/examples/echo",
+        ranking_metric: "latency_ms",
+        ranking_direction: "asc",
+        rules_md: `## Rules
+
+- \`stdin\` is a JSON object with a single string field \`message\`.
+- \`stdout\` must equal the value of \`message\` **exactly**, followed by
+  a single trailing newline.
+- Missing \`message\` field → exit code 1, write an error to \`stderr\`.
+
+## Why this exists
+
+This is a smoke test. Use it to verify your \`trap.yaml\` is wired up
+correctly before tackling a real task. Everyone scores 1.0 here, so
+**the leaderboard is a pure speed race** — fastest cold start wins.
+`,
         created_at: new Date("2026-05-01T10:00:00Z"),
       },
     ])
@@ -182,6 +242,62 @@ async function main() {
         started_at: new Date("2026-05-04T09:00:01Z"),
         finished_at: new Date("2026-05-04T09:00:03Z"),
       },
+      // Three scored echo runs at different latencies — to demonstrate the
+      // latency-sorted leaderboard for this task.
+      {
+        id: "run-echo-002",
+        task_id: "echo",
+        runner_id: "r-regex",
+        status: "scored",
+        passed: true,
+        total_score: 1.0,
+        cases_passed: 1,
+        cases_failed: 0,
+        cases_skipped: 0,
+        cost_usd: 0,
+        latency_ms: 8,
+        token_count: null,
+        created_at: new Date("2026-05-04T10:00:00Z"),
+        started_at: new Date("2026-05-04T10:00:01Z"),
+        finished_at: new Date("2026-05-04T10:00:01Z"),
+        scored_at: new Date("2026-05-04T10:00:01Z"),
+      },
+      {
+        id: "run-echo-003",
+        task_id: "echo",
+        runner_id: "r-claude-skill",
+        status: "scored",
+        passed: true,
+        total_score: 1.0,
+        cases_passed: 1,
+        cases_failed: 0,
+        cases_skipped: 0,
+        cost_usd: 0.0005,
+        latency_ms: 920,
+        token_count: 12,
+        created_at: new Date("2026-05-04T10:30:00Z"),
+        started_at: new Date("2026-05-04T10:30:01Z"),
+        finished_at: new Date("2026-05-04T10:30:02Z"),
+        scored_at: new Date("2026-05-04T10:30:02Z"),
+      },
+      {
+        id: "run-echo-004",
+        task_id: "echo",
+        runner_id: "r-gpt5",
+        status: "scored",
+        passed: true,
+        total_score: 1.0,
+        cases_passed: 1,
+        cases_failed: 0,
+        cases_skipped: 0,
+        cost_usd: 0.0015,
+        latency_ms: 1600,
+        token_count: 24,
+        created_at: new Date("2026-05-04T11:00:00Z"),
+        started_at: new Date("2026-05-04T11:00:01Z"),
+        finished_at: new Date("2026-05-04T11:00:03Z"),
+        scored_at: new Date("2026-05-04T11:00:03Z"),
+      },
     ])
     .onConflictDoNothing();
 
@@ -286,6 +402,40 @@ async function main() {
         skipped: false,
       })),
     )
+    .onConflictDoNothing();
+
+  // echo cases (one per scored run; echo task has a single case)
+  await db
+    .insert(cases)
+    .values([
+      {
+        id: "c-echo-002-echo",
+        run_id: "run-echo-002",
+        case_id: "echo",
+        exit_code: 0,
+        duration_ms: 8,
+        metrics: { output_match: true, score: 1.0 },
+        skipped: false,
+      },
+      {
+        id: "c-echo-003-echo",
+        run_id: "run-echo-003",
+        case_id: "echo",
+        exit_code: 0,
+        duration_ms: 920,
+        metrics: { output_match: true, score: 1.0 },
+        skipped: false,
+      },
+      {
+        id: "c-echo-004-echo",
+        run_id: "run-echo-004",
+        case_id: "echo",
+        exit_code: 0,
+        duration_ms: 1600,
+        metrics: { output_match: true, score: 1.0 },
+        skipped: false,
+      },
+    ])
     .onConflictDoNothing();
 
   // -------------------------------------------------------------------------

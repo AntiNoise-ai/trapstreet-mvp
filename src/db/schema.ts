@@ -56,6 +56,18 @@ export const runners = pgTable(
 // -----------------------------------------------------------------------------
 // tasks — points at a traptask directory in some git repo. The CLI is
 // authoritative on cases/judge/grader; we just record the leaderboard.
+//
+// Each task picks its own ranking_metric — what column to sort the
+// leaderboard by — so different task families can compete on different
+// things (score, speed, cost). See docs/glossary.md "ranking metric".
+
+export type RankingMetric =
+  | "total_score"
+  | "latency_ms"
+  | "cost_usd"
+  | "cases_passed";
+
+export type RankingDirection = "asc" | "desc";
 
 export const tasks = pgTable("tasks", {
   id: text("id").primaryKey(),                           // "word-count", "tenancy-agreement"
@@ -63,6 +75,15 @@ export const tasks = pgTable("tasks", {
   track: text("track").notNull(),                        // "examples", "pdf-reader", ...
   description: text("description").notNull().default(""),
   traptask_ref: text("traptask_ref").notNull(),          // "AntiNoise-ai/trap/examples/word-count"
+  ranking_metric: text("ranking_metric")
+    .$type<RankingMetric>()
+    .notNull()
+    .default("total_score"),
+  ranking_direction: text("ranking_direction")
+    .$type<RankingDirection>()
+    .notNull()
+    .default("desc"),
+  rules_md: text("rules_md").notNull().default(""),
   created_at: timestamp("created_at", { withTimezone: true })
     .notNull()
     .default(sql`now()`),
