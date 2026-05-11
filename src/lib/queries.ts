@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { and, asc, desc, eq, sql as raw } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/db/client";
@@ -34,10 +35,14 @@ export async function listTasks(filter: { track?: string }): Promise<TaskRow[]> 
   return db.select().from(tasks);
 }
 
-export async function getTask(id: string): Promise<TaskRow | null> {
-  const rows = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
-  return rows[0] ?? null;
-}
+// React `cache` dedupes calls within a single request — layout + page +
+// metadata can all call getTask(id) without N round-trips to Neon.
+export const getTask = cache(
+  async (id: string): Promise<TaskRow | null> => {
+    const rows = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
+    return rows[0] ?? null;
+  },
+);
 
 export async function listTracks(): Promise<string[]> {
   const rows = await db.selectDistinct({ track: tasks.track }).from(tasks);
