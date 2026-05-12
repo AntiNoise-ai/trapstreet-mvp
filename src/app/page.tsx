@@ -1,11 +1,25 @@
 import Link from "next/link";
-import { taskStats, tasksByTrack } from "@/lib/queries";
+import { auth } from "@/auth";
+import { taskStats, tasksByTrack, userNames } from "@/lib/queries";
 import { fmtScore } from "@/lib/format";
 
 // Home — speedrun.com-style category grid. Each "track" is a section;
 // each task is a card. Click into a task to see its leaderboard.
 export default async function HomePage() {
-  const [byTrack, stats] = await Promise.all([tasksByTrack(), taskStats()]);
+  const session = await auth();
+  const viewerId = session?.user?.id ?? null;
+
+  const [byTrack, stats] = await Promise.all([
+    tasksByTrack(viewerId),
+    taskStats(),
+  ]);
+
+  // Look up display names for all task authors in one go.
+  const authorIds = [...byTrack.values()]
+    .flat()
+    .map((t) => t.created_by)
+    .filter((x): x is string => !!x);
+  const authors = await userNames(authorIds);
 
   return (
     <div>
@@ -15,8 +29,15 @@ export default async function HomePage() {
         </h1>
         <p className="max-w-2xl text-[var(--muted)]">
           Public benchmark for AI workflows. Pick a task → run it locally
-          with the <a href="https://github.com/AntiNoise-ai/trap" target="_blank" rel="noreferrer">trap CLI</a> →
-          upload the result. Leaderboards live inside each task.
+          with the{" "}
+          <a
+            href="https://github.com/AntiNoise-ai/trap"
+            target="_blank"
+            rel="noreferrer"
+          >
+            trap CLI
+          </a>{" "}
+          → upload the result. Leaderboards live inside each task.
         </p>
       </section>
 
@@ -33,8 +54,15 @@ export default async function HomePage() {
           <li>
             <p className="mb-1 text-[var(--muted)]">
               <span className="mr-2 text-[var(--accent)]">1.</span> Install{" "}
-              <code className="text-[var(--foreground)]">tp</code>{" "}
-              (requires <a href="https://docs.astral.sh/uv/" target="_blank" rel="noreferrer">uv</a>):
+              <code className="text-[var(--foreground)]">tp</code> (requires{" "}
+              <a
+                href="https://docs.astral.sh/uv/"
+                target="_blank"
+                rel="noreferrer"
+              >
+                uv
+              </a>
+              ):
             </p>
             <pre className="overflow-x-auto rounded border border-[var(--border)] bg-black/40 p-3 text-xs">
               <code>uv tool install git+https://github.com/AntiNoise-ai/trap</code>
@@ -44,8 +72,8 @@ export default async function HomePage() {
           <li>
             <p className="mb-1 text-[var(--muted)]">
               <span className="mr-2 text-[var(--accent)]">2.</span> Register a
-              runner (one-time) at{" "}
-              <Link href="/runners/new">/runners/new</Link> → copy the{" "}
+              runner from{" "}
+              <Link href="/settings">/settings</Link> → copy the{" "}
               <code className="text-[var(--foreground)]">api_key</code>:
             </p>
             <pre className="overflow-x-auto rounded border border-[var(--border)] bg-black/40 p-3 text-xs">
@@ -66,30 +94,25 @@ tp submit word-count                       # explicit task name`}
             </pre>
           </li>
         </ol>
-
-        <p className="mt-4 text-xs text-[var(--muted)]">
-          Server URL is configurable via{" "}
-          <code className="text-[var(--foreground)]">--server</code> or{" "}
-          <code className="text-[var(--foreground)]">TRAPSTREET_URL</code>{" "}
-          (defaults to <code className="text-[var(--foreground)]">https://trapstreet.run</code>).
-          For local dev: <code className="text-[var(--foreground)]">--server http://localhost:3000</code>.
-        </p>
       </section>
 
       {/* ─── Task grid ───────────────────────────────────────────────── */}
-      {[...byTrack.entries()].map(([track, tasks]) => (
+      {[...byTrack.entries()].map(([track, list]) => (
         <section key={track} className="mb-10">
           <div className="mb-4 flex items-baseline justify-between border-b border-[var(--border)] pb-1">
             <h2 className="text-sm uppercase tracking-widest text-[var(--muted)]">
               {track}
             </h2>
             <span className="text-xs text-[var(--muted)]">
-              {tasks.length} task{tasks.length === 1 ? "" : "s"}
+              {list.length} task{list.length === 1 ? "" : "s"}
             </span>
           </div>
           <ul className="grid gap-3 sm:grid-cols-2">
-            {tasks.map((t) => {
+            {list.map((t) => {
               const s = stats.get(t.id);
+              const author = t.created_by
+                ? authors.get(t.created_by) ?? "(unknown)"
+                : "trapstreet";
               return (
                 <li key={t.id}>
                   <Link
@@ -100,7 +123,12 @@ tp submit word-count                       # explicit task name`}
                       <span className="font-semibold text-[var(--foreground)]">
                         {t.name}
                       </span>
-                      <span className="text-[10px] uppercase tracking-widest text-[var(--muted)]">
+                      <span className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-[var(--muted)]">
+                        {t.visibility === "private" && (
+                          <span className="rounded border border-[var(--border)] px-1 normal-case tracking-normal">
+                            private
+                          </span>
+                        )}
                         {t.id}
                       </span>
                     </div>
@@ -111,16 +139,21 @@ tp submit word-count                       # explicit task name`}
                     )}
                     <div className="flex items-baseline justify-between text-xs">
                       <span className="text-[var(--muted)]">
-                        {s?.runs ?? 0} run{(s?.runs ?? 0) === 1 ? "" : "s"}
+                        by{" "}
+                        <span className="text-[var(--foreground)]">
+                          {author}
+                        </span>{" "}
+                        · {s?.runs ?? 0} run{(s?.runs ?? 0) === 1 ? "" : "s"}
                       </span>
                       {s?.best_runner && (
                         <span>
-                          <span className="text-[var(--muted)]">wr by </span>
-                          <span className="text-[var(--foreground)]">
-                            {s.best_runner}
-                          </span>{" "}
+                          <span className="text-[var(--muted)]">wr </span>
                           <span className="text-[var(--accent)]">
                             {fmtScore(s.best_score)}
+                          </span>
+                          <span className="text-[var(--muted)]"> by </span>
+                          <span className="text-[var(--foreground)]">
+                            {s.best_runner}
                           </span>
                         </span>
                       )}

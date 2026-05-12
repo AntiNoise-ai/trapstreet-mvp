@@ -11,7 +11,8 @@ export const metadata: Metadata = {
 const NAV = [
   { href: "/", label: "tasks" },
   { href: "/threads", label: "threads" },
-  { href: "/runners/new", label: "register runner" },
+  { href: "/tasks/new", label: "new task" },
+  { href: "/settings", label: "settings" },
 ];
 
 export default function RootLayout({

@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { and, asc, desc, eq, sql as raw } from "drizzle-orm";
+import { and, asc, desc, eq, or, sql as raw } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/db/client";
 import {
@@ -9,11 +9,13 @@ import {
   runs,
   tasks,
   threads,
+  users,
   type CaseRow,
   type RankingDirection,
   type RankingMetric,
   type RunRow,
   type TaskRow,
+  type TaskVisibility,
 } from "@/db/schema";
 
 // -----------------------------------------------------------------------------
@@ -28,11 +30,22 @@ export function uid(prefix = ""): string {
 // -----------------------------------------------------------------------------
 // tasks
 
-export async function listTasks(filter: { track?: string }): Promise<TaskRow[]> {
-  if (filter.track) {
-    return db.select().from(tasks).where(eq(tasks.track, filter.track));
-  }
-  return db.select().from(tasks);
+// listTasks honours visibility: anonymous viewers see public-only;
+// signed-in viewers see public + their own private tasks.
+export async function listTasks(filter: {
+  track?: string;
+  viewer_id?: string | null;
+}): Promise<TaskRow[]> {
+  const visibilityClause = filter.viewer_id
+    ? or(
+        eq(tasks.visibility, "public"),
+        eq(tasks.created_by, filter.viewer_id),
+      )
+    : eq(tasks.visibility, "public");
+  const where = filter.track
+    ? and(visibilityClause, eq(tasks.track, filter.track))
+    : visibilityClause;
+  return db.select().from(tasks).where(where);
 }
 
 // React `cache` dedupes calls within a single request — layout + page +
@@ -49,11 +62,18 @@ export async function listTracks(): Promise<string[]> {
   return rows.map((r) => r.track).sort();
 }
 
-// Group tasks by track for the home grid.
-export async function tasksByTrack(): Promise<Map<string, TaskRow[]>> {
+// Group tasks by track for the home grid. Visibility-aware.
+export async function tasksByTrack(viewerId: string | null): Promise<Map<string, TaskRow[]>> {
+  const visibilityClause = viewerId
+    ? or(
+        eq(tasks.visibility, "public"),
+        eq(tasks.created_by, viewerId),
+      )
+    : eq(tasks.visibility, "public");
   const all = await db
     .select()
     .from(tasks)
+    .where(visibilityClause)
     .orderBy(asc(tasks.track), asc(tasks.id));
   const map = new Map<string, TaskRow[]>();
   for (const t of all) {
@@ -61,6 +81,38 @@ export async function tasksByTrack(): Promise<Map<string, TaskRow[]>> {
     map.get(t.track)!.push(t);
   }
   return map;
+}
+
+// Lookup display names for a batch of user_ids (for "by @username" badges).
+export async function userNames(ids: string[]): Promise<Map<string, string>> {
+  const unique = [...new Set(ids.filter((x): x is string => !!x))];
+  if (unique.length === 0) return new Map();
+  const rows = await db
+    .select({ id: users.id, name: users.name, email: users.email })
+    .from(users)
+    .where(or(...unique.map((id) => eq(users.id, id))));
+  const m = new Map<string, string>();
+  for (const r of rows) {
+    m.set(r.id, r.name ?? r.email ?? r.id);
+  }
+  return m;
+}
+
+export async function createTask(input: {
+  id: string;
+  name: string;
+  track: string;
+  description: string;
+  traptask_ref: string;
+  ranking_metric: RankingMetric;
+  ranking_direction: RankingDirection;
+  rules_md: string;
+  io_md: string;
+  visibility: TaskVisibility;
+  created_by: string;
+}): Promise<TaskRow> {
+  const [row] = await db.insert(tasks).values(input).returning();
+  return row;
 }
 
 // Best score (and run count) per task — for the task grid summary.
