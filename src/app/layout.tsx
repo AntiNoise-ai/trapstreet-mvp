@@ -8,11 +8,11 @@ export const metadata: Metadata = {
   description: "Find the fakes. Run real evals. Share the results.",
 };
 
+// Public nav — same for everyone. Account-related actions (new task,
+// settings, sign out) live in the user dropdown at the right.
 const NAV = [
   { href: "/", label: "tasks" },
   { href: "/threads", label: "threads" },
-  { href: "/tasks/new", label: "new task" },
-  { href: "/settings", label: "settings" },
 ];
 
 export default function RootLayout({
