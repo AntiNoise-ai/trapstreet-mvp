@@ -1,0 +1,35 @@
+dirs:
+  inputs: inputs/
+  expected: expected/
+
+cases:
+  - id: contains_basic
+    description: stdout contains the substring (case-insensitive)
+    tags: [smoke]
+
+  - id: not_contains
+    description: stdout does not contain an unwanted substring
+
+  - id: exact_match
+    description: stdout matches exactly (after strip)
+
+  - id: regex_match
+    description: stdout matches a regex pattern
+
+  - id: exit_code_failure
+    description: exit code is 1 when message field is missing
+
+  - id: skipped_example
+    description: example of a skipped case
+    skip: true
+    tags: [wip]
+
+  - id: tagged_smoke
+    description: tagged as smoke for selective runs
+    tags: [smoke]
+
+judge:
+  cmd: .venv/bin/python judge.py
+
+grader:
+  cmd: .venv/bin/python grader.py

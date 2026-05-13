@@ -31,7 +31,7 @@ export default async function HomePage() {
           Public benchmark for AI workflows. Pick a task → run it locally
           with the{" "}
           <a
-            href="https://github.com/AntiNoise-ai/trap"
+            href="https://github.com/AntiNoise-ai/trapstreet-mvp/tree/main/cli"
             target="_blank"
             rel="noreferrer"
           >
@@ -65,7 +65,7 @@ export default async function HomePage() {
               ):
             </p>
             <pre className="overflow-x-auto rounded border border-[var(--border)] bg-black/40 p-3 text-xs">
-              <code>uv tool install git+https://github.com/AntiNoise-ai/trap</code>
+              <code>uv tool install &quot;git+https://github.com/AntiNoise-ai/trapstreet-mvp.git#subdirectory=cli&quot;</code>
             </pre>
           </li>
 

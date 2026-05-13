@@ -90,7 +90,7 @@ PDF tasks are expensive so cost matters more than latency here.
         track: "examples",
         description:
           "Read text from stdin, emit word frequencies and a summary JSON.",
-        traptask_ref: "AntiNoise-ai/trap/examples/word-count",
+        traptask_ref: "AntiNoise-ai/trapstreet-mvp/cli/examples/word-count",
         ranking_metric: "total_score",
         ranking_direction: "desc",
         io_md: `## Example case: \`basic\`
@@ -188,7 +188,7 @@ score 1.0, so this leaderboard is effectively a speed race.
         track: "examples",
         description:
           "Trivial smoke test — read {message} from stdin, print it back.",
-        traptask_ref: "AntiNoise-ai/trap/examples/echo",
+        traptask_ref: "AntiNoise-ai/trapstreet-mvp/cli/examples/echo",
         ranking_metric: "latency_ms",
         ranking_direction: "asc",
         io_md: `## Example case: \`exact_match\`

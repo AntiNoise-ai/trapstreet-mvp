@@ -1,0 +1,13 @@
+tasks:
+  test:
+    description: Echo solution — reads stdin JSON and writes it back to stdout
+    cmd: uv run python echo.py
+    traptask: ../task
+    inputs:
+      stdin: input.json
+
+  run:
+    cmd: uv run python echo.py
+    traptask: ../task
+    inputs:
+      stdin: input.json

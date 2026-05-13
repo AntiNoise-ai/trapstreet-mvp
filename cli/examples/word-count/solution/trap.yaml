@@ -1,0 +1,22 @@
+tasks:
+  test:
+    cmd: uv run python word_count.py
+    traptask: ../task
+    inputs:
+      stdin: text.txt
+      files:
+        - config.json
+    file_outputs:
+      - frequencies.json
+      - summary.json
+
+  run:
+    cmd: uv run python word_count.py
+    traptask: ../task-run
+    inputs:
+      stdin: text.txt
+      files:
+        - config.json
+    file_outputs:
+      - frequencies.json
+      - summary.json

@@ -18,6 +18,25 @@ graders, file storage, and tier badges still mocked.
 Stack: Next.js 15 (app router) · React 19 · TS · Tailwind v4 ·
 Drizzle ORM · Neon Postgres · Auth.js v5 (JWT).
 
+## Layout
+
+Monorepo — web + CLI live together:
+
+```
+trapstreet-mvp/
+├── src/                  Next.js app
+├── docs/                 spec + glossary + deploy
+└── cli/                  the `tp` CLI (Python, uv-managed)
+    ├── src/trap/
+    └── examples/
+```
+
+The CLI installs from this repo's `cli/` subdir:
+
+```bash
+uv tool install "git+https://github.com/AntiNoise-ai/trapstreet-mvp.git#subdirectory=cli"
+```
+
 ## Setup
 
 ### 1. Database (Neon, free)
@@ -58,12 +77,13 @@ pnpm dev         # http://localhost:3000
 - **all 11 endpoints** from `docs/api-v0.md` under `src/app/api/*`
 - **OAuth login** — GitHub + Google, JWT session, lightweight `users`
   row written on first signin
-- **runner ownership** — `/runners/new` requires login; new runners are
-  linked to your user via `runners.user_id`. API-key auth on write
-  endpoints still works for CLI/CI use.
-- **6 pages**: leaderboard (`/`), tasks (`/tasks`, `/tasks/[id]`), run
-  detail (`/runs/[id]`), threads (`/threads`, `/threads/[id]`), runner
-  registration (`/runners/new`)
+- **runner ownership** — runners are registered under `/settings`
+  (logged-in only) and linked to your user via `runners.user_id`.
+  API-key auth on write endpoints still works for CLI/CI use.
+- **pages**: home / task grid (`/`), task page (`/tasks/[id]` with
+  Leaderboard · Rules · Forum tabs), task creation (`/tasks/new`),
+  run detail (`/runs/[id]`), threads (`/threads`, `/threads/[id]`),
+  account (`/settings`)
 - **seeded data**: 3 tasks across 2 tracks, 3 runners, 6 runs (5 scored
   + 1 failed), 2 threads with comments
 - **mock grader**: `PATCH /api/runs/:id status=succeeded` synchronously

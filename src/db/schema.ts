@@ -76,7 +76,7 @@ export const tasks = pgTable("tasks", {
   name: text("name").notNull(),                          // "Word frequencies + summary"
   track: text("track").notNull(),                        // "examples", "pdf-reader", ...
   description: text("description").notNull().default(""),
-  traptask_ref: text("traptask_ref").notNull(),          // "AntiNoise-ai/trap/examples/word-count"
+  traptask_ref: text("traptask_ref").notNull(),          // "AntiNoise-ai/trapstreet-mvp/cli/examples/word-count"
   // Ownership + visibility. Seeded tasks have created_by = null
   // (rendered as "by trapstreet"). User-created tasks FK to users.
   created_by: text("created_by").references(() => users.id, { onDelete: "set null" }),

@@ -1,0 +1,15 @@
+dirs:
+  inputs: ../task/inputs/
+
+cases:
+  - id: basic
+    description: word frequencies and summary across three words
+
+  - id: case_insensitive
+    description: words normalised to lowercase when case_sensitive is false
+
+  - id: case_sensitive
+    description: words kept as-is when case_sensitive is true
+
+  - id: empty
+    description: empty text produces zero counts and empty top_words
