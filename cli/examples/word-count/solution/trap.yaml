@@ -1,5 +1,8 @@
 tasks:
-  test:
+  # Local task name = trapstreet task_id so `tp submit` Just Works
+  # without --as flag. Bench / variant tasks at the bottom keep their
+  # own local names since they don't map to a trapstreet task.
+  word-count:
     cmd: uv run python word_count.py
     traptask: ../task
     inputs:
