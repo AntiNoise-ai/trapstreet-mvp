@@ -3,10 +3,27 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "trap"
+name = "trapstreet-cli"
 dynamic = ["version"]
+description = "tp — non-invasive CLI testing framework for AI workflows. Submits results to trapstreet.run."
 readme = "README.md"
-requires-python = ">=3.14"
+license = "MIT"
+authors = [{ name = "AntiNoise", email = "hcshu@dlyai.com" }]
+keywords = ["eval", "ai", "llm", "benchmark", "trapstreet", "agent", "workflow"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Testing",
+]
+# 3.13 not 3.14: pydantic 2.13 has a typing._eval_type incompatibility
+# with Python 3.14. Drop the floor when upstream lands a fix.
+requires-python = ">=3.13"
 dependencies = [
     "typer>=0.12",
     "pydantic>=2.0",
@@ -15,17 +32,35 @@ dependencies = [
     "loguru>=0.7",
 ]
 
+[project.urls]
+Homepage = "https://trapstreet.run"
+Repository = "https://github.com/AntiNoise-ai/trapstreet-mvp"
+Issues = "https://github.com/AntiNoise-ai/trapstreet-mvp/issues"
+
 [project.scripts]
 tp = "trap.cli:app"
 
 [tool.hatch.version]
 source = "vcs"
 
+# Restrict hatch-vcs to tags shaped like `cli-vX.Y.Z`. Lets us tag CLI
+# releases independently of the web app in the same repo. Options are
+# forwarded to setuptools_scm; `root = ".."` because the .git lives
+# in the parent (this is a subdir-packaged CLI inside the trapstreet
+# monorepo). `fallback_version` keeps untagged builds working.
+[tool.hatch.version.raw-options]
+root = ".."
+tag_regex = "^cli-v(?P<version>.+)$"
+fallback_version = "0.0.0.dev0"
+
 [tool.hatch.build.hooks.vcs]
 version-file = "src/trap/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/trap"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/trap", "README.md", "pyproject.toml"]
 
 [dependency-groups]
 dev = [
@@ -39,7 +74,7 @@ exclude = ["examples/*"]
 
 [tool.ruff]
 line-length = 110
-target-version = "py314"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "C4", "RUF"]

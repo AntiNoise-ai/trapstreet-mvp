@@ -65,8 +65,12 @@ export default async function HomePage() {
               ):
             </p>
             <pre className="overflow-x-auto rounded border border-[var(--border)] bg-black/40 p-3 text-xs">
-              <code>uv tool install &quot;git+https://github.com/AntiNoise-ai/trapstreet-mvp.git#subdirectory=cli&quot;</code>
+              <code>uv tool install trapstreet-cli</code>
             </pre>
+            <p className="mt-1 text-[11px] text-[var(--muted)]">
+              Bleeding edge from git instead:{" "}
+              <code className="text-[var(--foreground)]">uv tool install &quot;git+https://github.com/AntiNoise-ai/trapstreet-mvp.git#subdirectory=cli&quot;</code>
+            </p>
           </li>
 
           <li>

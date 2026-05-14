@@ -1,0 +1,58 @@
+name: Publish CLI to PyPI
+
+# Triggers:
+#   - push a tag matching `cli-v*` → builds + publishes that version
+#   - manual run from the Actions tab (workflow_dispatch) → builds + publishes
+#     whatever HEAD currently resolves to under hatch-vcs (handy for dry runs
+#     into TestPyPI; for real prod releases prefer tagging)
+on:
+  push:
+    tags:
+      - "cli-v*"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Where to publish"
+        required: true
+        default: "pypi"
+        type: choice
+        options:
+          - pypi
+          - testpypi
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ./cli
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # hatch-vcs needs the full history (and tags) to compute version
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Build wheel + sdist
+        run: uv build
+
+      - name: Show artifacts
+        run: ls -lh dist/
+
+      - name: Publish to PyPI
+        if: github.event_name == 'push' || github.event.inputs.target == 'pypi'
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: uv publish
+
+      - name: Publish to TestPyPI
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'testpypi'
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}
+        run: uv publish --publish-url https://test.pypi.org/legacy/

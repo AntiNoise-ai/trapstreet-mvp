@@ -2,11 +2,21 @@
 
 > Lives at [`trapstreet-mvp/cli/`](https://github.com/AntiNoise-ai/trapstreet-mvp/tree/main/cli) — part of the trapstreet monorepo. The standalone repo `AntiNoise-ai/trap` is retained for history only; all active development happens here.
 
-Install:
+Install (from PyPI — recommended):
+
+```bash
+uv tool install trapstreet-cli
+# also works via pipx / pip
+```
+
+From git (latest main, no PyPI release needed):
 
 ```bash
 uv tool install "git+https://github.com/AntiNoise-ai/trapstreet-mvp.git#subdirectory=cli"
 ```
+
+The command name is `tp`. Releases are git-tagged `cli-vX.Y.Z`; tagging
+triggers PyPI publish via GitHub Actions.
 
 `trap` is a **non-invasive CLI testing framework for AI prompts, agents, and workflows**. It treats the program under test (the "solution") as a black box: it invokes the solution as a subprocess, captures stdout/stderr/files, then optionally pipes that output through a "judge" (per-case scorer) and a "grader" (overall aggregator) — also subprocesses, also language-agnostic.
 

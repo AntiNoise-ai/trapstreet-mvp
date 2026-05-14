@@ -31,11 +31,18 @@ trapstreet-mvp/
     └── examples/
 ```
 
-The CLI installs from this repo's `cli/` subdir:
+The CLI ships as `trapstreet-cli` on PyPI:
 
 ```bash
+uv tool install trapstreet-cli            # recommended
+# or from this repo (latest main):
 uv tool install "git+https://github.com/AntiNoise-ai/trapstreet-mvp.git#subdirectory=cli"
 ```
+
+The command name installed is `tp`. Source lives in [`cli/`](./cli).
+Releases are tagged `cli-v*` (e.g. `cli-v0.1.0`) — tagging triggers the
+GitHub Action that publishes to PyPI. See
+[`.github/workflows/publish-cli.yml`](./.github/workflows/publish-cli.yml).
 
 ## Setup
 
