@@ -77,6 +77,11 @@ export const tasks = pgTable("tasks", {
   track: text("track").notNull(),                        // "examples", "pdf-reader", ...
   description: text("description").notNull().default(""),
   traptask_ref: text("traptask_ref").notNull(),          // "AntiNoise-ai/trapstreet-mvp/cli/examples/word-count"
+  // Optional: GitHub path to a reference solution directory containing
+  // `trap.yaml`. When present, the task page renders a one-liner
+  // `git clone ... && cd ... && tp run && tp submit` so curious users
+  // can try the task in literally one command.
+  reference_solution_ref: text("reference_solution_ref"),
   // Ownership + visibility. Seeded tasks have created_by = null
   // (rendered as "by trapstreet"). User-created tasks FK to users.
   created_by: text("created_by").references(() => users.id, { onDelete: "set null" }),
