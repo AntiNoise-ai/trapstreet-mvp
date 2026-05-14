@@ -213,6 +213,43 @@ export async function listRunnersByUser(userId: string) {
   return db.select().from(runners).where(eq(runners.user_id, userId));
 }
 
+// Idempotent insert of the users row. Needed when a stale JWT cookie
+// outlives a DB reset — auth() still returns a session, but the FK
+// target row is gone. Derives provider+providerAccountId from the
+// `u_<provider>_<acct>` id shape that auth.ts mints.
+export async function ensureUserRow(
+  userId: string,
+  profile: {
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
+  },
+): Promise<void> {
+  const existing = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (existing.length > 0) return;
+
+  const match = /^u_([^_]+)_(.+)$/.exec(userId);
+  if (!match) {
+    throw new Error(`malformed user id: ${userId}`);
+  }
+  const [, provider, providerAccountId] = match;
+  await db
+    .insert(users)
+    .values({
+      id: userId,
+      provider,
+      provider_account_id: providerAccountId,
+      email: profile.email ?? null,
+      name: profile.name ?? null,
+      image: profile.image ?? null,
+    })
+    .onConflictDoNothing();
+}
+
 // Used by /cli/authorize: returns this user's default runner identity
 // (used by `tp login`). If they have no runners yet, auto-creates one
 // named after them. We DON'T rotate the api_key on every login — login

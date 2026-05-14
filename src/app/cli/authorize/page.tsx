@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth, signIn } from "@/auth";
-import { getOrCreateCliRunner } from "@/lib/queries";
+import { ensureUserRow, getOrCreateCliRunner } from "@/lib/queries";
 
 // /cli/authorize?return=http://localhost:<port>/callback
 //
@@ -53,42 +53,24 @@ export default async function CliAuthorizePage({
 
   async function approve() {
     "use server";
-    // Module-scoped wrapper so we can log without catching NEXT_REDIRECT.
     const s = await auth();
-    console.log("[cli/authorize] approve start", {
-      hasUser: !!s?.user,
-      userId: s?.user?.id,
-      returnUrl,
-    });
-    if (!s?.user) {
+    if (!s?.user?.id) {
       throw new Error("not signed in");
-    }
-    if (!s.user.id) {
-      throw new Error(
-        "session has no user.id — sign out and back in to refresh JWT",
-      );
     }
     if (!isLocalhostUrl(returnUrl)) {
       throw new Error("invalid return url");
     }
-    let runner;
-    try {
-      runner = await getOrCreateCliRunner(
-        s.user.id,
-        s.user.name ?? s.user.email ?? "user",
-      );
-    } catch (e) {
-      console.error("[cli/authorize] getOrCreateCliRunner failed", {
-        userId: s.user.id,
-        userName: s.user.name,
-        error: e instanceof Error ? `${e.name}: ${e.message}` : String(e),
-        stack: e instanceof Error ? e.stack : undefined,
-      });
-      throw e;
-    }
-    console.log("[cli/authorize] approve issuing api_key", {
-      runner: runner.name,
+    // Recreate the users row if a stale JWT outlived a DB reset
+    // (otherwise the runners.user_id FK insert below fails).
+    await ensureUserRow(s.user.id, {
+      name: s.user.name,
+      email: s.user.email,
+      image: s.user.image,
     });
+    const runner = await getOrCreateCliRunner(
+      s.user.id,
+      s.user.name ?? s.user.email ?? "user",
+    );
     const sep = returnUrl.includes("?") ? "&" : "?";
     redirect(
       `${returnUrl}${sep}api_key=${encodeURIComponent(runner.api_key)}` +
