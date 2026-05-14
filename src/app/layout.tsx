@@ -13,6 +13,7 @@ export const metadata: Metadata = {
 const NAV = [
   { href: "/", label: "tasks" },
   { href: "/threads", label: "threads" },
+  { href: "/docs", label: "docs" },
 ];
 
 export default function RootLayout({

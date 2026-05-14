@@ -2,6 +2,7 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { taskStats, tasksByTrack, userNames } from "@/lib/queries";
 import { fmtScore } from "@/lib/format";
+import { CopyableCode } from "@/components/copyable-code";
 
 // Home — speedrun.com-style category grid. Each "track" is a section;
 // each task is a card. Click into a task to see its leaderboard.
@@ -41,68 +42,28 @@ export default async function HomePage() {
         </p>
       </section>
 
-      {/* ─── Install + quick start ───────────────────────────────────── */}
+      {/* ─── Quick start ─────────────────────────────────────────────── */}
       <section className="mb-12 rounded border border-[var(--border)] p-5">
-        <h2 className="mb-1 text-sm uppercase tracking-widest text-[var(--muted)]">
-          quick start
-        </h2>
-        <p className="mb-4 text-sm text-[var(--foreground)]">
-          Install the <code>tp</code> CLI, then submit a run in one command.
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 className="text-sm uppercase tracking-widest text-[var(--muted)]">
+            quick start
+          </h2>
+          <Link href="/docs" className="text-xs">
+            more →
+          </Link>
+        </div>
+        <CopyableCode
+          code={`uv tool install trapstreet-cli   # one-time
+tp login                          # one-time, opens browser
+tp run && tp submit               # in any task's solution dir`}
+        />
+
+        <p className="mt-3 text-xs text-[var(--muted)]">
+          Don&apos;t have <a href="https://docs.astral.sh/uv/" target="_blank" rel="noreferrer">uv</a> yet?{" "}
+          <code className="text-[var(--foreground)]">curl -LsSf https://astral.sh/uv/install.sh | sh</code>.
+          Full walkthrough — including how to build your own task —{" "}
+          <Link href="/docs">in the docs</Link>.
         </p>
-
-        <ol className="space-y-4 text-sm">
-          <li>
-            <p className="mb-1 text-[var(--muted)]">
-              <span className="mr-2 text-[var(--accent)]">1.</span> Install{" "}
-              <code className="text-[var(--foreground)]">tp</code> (requires{" "}
-              <a
-                href="https://docs.astral.sh/uv/"
-                target="_blank"
-                rel="noreferrer"
-              >
-                uv
-              </a>
-              ):
-            </p>
-            <pre className="overflow-x-auto rounded border border-[var(--border)] bg-black/40 p-3 text-xs">
-              <code>uv tool install trapstreet-cli</code>
-            </pre>
-            <p className="mt-1 text-[11px] text-[var(--muted)]">
-              Bleeding edge from git instead:{" "}
-              <code className="text-[var(--foreground)]">uv tool install &quot;git+https://github.com/AntiNoise-ai/trapstreet-mvp.git#subdirectory=cli&quot;</code>
-            </p>
-          </li>
-
-          <li>
-            <p className="mb-1 text-[var(--muted)]">
-              <span className="mr-2 text-[var(--accent)]">2.</span> Authorize
-              the CLI — opens a browser, click Approve, token saves locally:
-            </p>
-            <pre className="overflow-x-auto rounded border border-[var(--border)] bg-black/40 p-3 text-xs">
-              <code>tp login</code>
-            </pre>
-            <p className="mt-1 text-[11px] text-[var(--muted)]">
-              Or skip{" "}
-              <code className="text-[var(--foreground)]">tp login</code>{" "}
-              and{" "}
-              <code className="text-[var(--foreground)]">export TRAPSTREET_API_KEY=ts_...</code>{" "}
-              from <Link href="/settings">/settings</Link>.
-            </p>
-          </li>
-
-          <li>
-            <p className="mb-1 text-[var(--muted)]">
-              <span className="mr-2 text-[var(--accent)]">3.</span> Clone a task
-              (see grid below), write your solution + a{" "}
-              <code className="text-[var(--foreground)]">trap.yaml</code>{" "}
-              pointing at it, then:
-            </p>
-            <pre className="overflow-x-auto rounded border border-[var(--border)] bg-black/40 p-3 text-xs">
-{`tp run && tp submit                       # uses 1st task in trap.yaml
-tp submit word-count                       # explicit task name`}
-            </pre>
-          </li>
-        </ol>
       </section>
 
       {/* ─── Task grid ───────────────────────────────────────────────── */}
