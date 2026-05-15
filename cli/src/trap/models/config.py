@@ -1,7 +1,9 @@
 # Models for trap.yaml (solution author's config).
 from __future__ import annotations
 
-from pydantic import BaseModel
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict
 
 
 class InputsBinding(BaseModel):
@@ -25,3 +27,8 @@ class Task(BaseModel):
     # env var names injected by the runner; override if the solution already uses these names
     inputs_envvar: str = "INPUTS"
     outputs_envvar: str = "OUTPUTS"
+    # self-reported solution profile — e.g. {model, framework, max_tokens}.
+    # Free-form; never validated by trap or trapstreet. Plumbed through to
+    # report.json's `metadata` field for the leaderboard's "Solution metadata"
+    # panel. See trapstreet/docs/scoring-and-metrics.md.
+    metadata: dict[str, Any] = {}

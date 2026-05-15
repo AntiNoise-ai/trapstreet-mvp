@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -14,9 +15,17 @@ class ReportSaver:
         run_dir: Path,
         cases: tuple[CaseResult, ...],
         task: Task,
+        started_at: datetime,
+        finished_at: datetime,
         grader_metrics: Any = None,
     ) -> ReportData:
-        data = ReportData.from_run(cases, task, grader_metrics)
+        data = ReportData.from_run(
+            task=task,
+            cases=cases,
+            started_at=started_at,
+            finished_at=finished_at,
+            grader_metrics=grader_metrics,
+        )
         (run_dir / _REPORT_FILENAME).write_text(data.model_dump_json(indent=2))
         return data
 

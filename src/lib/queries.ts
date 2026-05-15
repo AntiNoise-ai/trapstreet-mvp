@@ -318,39 +318,76 @@ export async function updateRun(id: string, patch: Partial<RunRow>) {
   return row ?? null;
 }
 
-// CLI upload payload — what `tp` writes when run finishes.
+// CLI upload payload — see trapstreet/docs/scoring-and-metrics.md
+// "Upload protocol" for the contract. Five top-level keys, all
+// required-or-optional as noted.
+
+export interface CliCase {
+  case_id: string;
+  exit_code?: number;
+  duration?: number;       // seconds (CLI's native unit); server stores ms
+  metrics?: Record<string, unknown>;
+  skipped?: boolean;
+}
+
+export interface CliSummary {
+  passed: boolean;
+  score: number;
+  n_passed?: number;
+  n_total?: number;
+  n_skipped?: number;
+  latency_ms_total?: number;
+  latency_ms_median?: number;
+  latency_ms_p95?: number;
+  cost_usd_total?: number;
+  tokens_total?: number;
+  by_category?: Record<string, number>;
+  // grader.py may emit any other keys; we tolerate and store them
+  [key: string]: unknown;
+}
+
 export interface CliUpload {
-  task: {
-    name?: string;
-    description?: string;
-    cmd?: string;
-    traptask?: string;
-    inputs?: unknown;
-    file_outputs?: unknown;
-    timeout?: number;
-    inputs_envvar?: string;
-    outputs_envvar?: string;
+  task_id: string;
+  cases: CliCase[];
+  summary?: CliSummary;     // omitted → server auto-computes from cases
+  started_at?: string;      // ISO 8601, CLI wall-clock
+  finished_at?: string;     // ISO 8601, CLI wall-clock
+  metadata?: Record<string, unknown>;
+}
+
+// Server-side fallback summary when the report doesn't include one
+// (grader.py was omitted on the task side). Computes the well-known
+// fields from case metrics.
+function autoSummary(cs: CliCase[]): CliSummary {
+  const scored = cs.filter((c) => !c.skipped);
+  const scores = scored
+    .map((c) => (c.metrics?.score as number | undefined) ?? null)
+    .filter((s): s is number => typeof s === "number");
+  const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+  const n_passed = scores.filter((s) => s === 1.0).length;
+  const n_total = scored.length;
+  const n_skipped = cs.filter((c) => c.skipped).length;
+  const durations = scored
+    .map((c) => c.duration)
+    .filter((d): d is number => typeof d === "number");
+  const latency_ms_total = durations.length > 0
+    ? Math.round(durations.reduce((a, b) => a + b, 0) * 1000)
+    : undefined;
+  const costs = scored
+    .map((c) => c.metrics?.usd_cost as number | undefined)
+    .filter((x): x is number => typeof x === "number");
+  const cost_usd_total = costs.length > 0
+    ? Number(costs.reduce((a, b) => a + b, 0).toFixed(6))
+    : undefined;
+  return {
+    passed: avg >= 0.8,
+    score: Number(avg.toFixed(4)),
+    n_passed,
+    n_total,
+    n_skipped,
+    latency_ms_total,
+    cost_usd_total,
   };
-  cases: Array<{
-    case_id: string;
-    exit_code?: number;
-    duration?: number;     // seconds
-    metrics?: Record<string, unknown>;
-    skipped?: boolean;
-  }>;
-  run_counts: {
-    passed: number;
-    failed: number;
-    skipped: number;
-  };
-  grader_metrics: {
-    passed: boolean;
-    score: number;
-  };
-  // Optional samples AI runners may attach
-  cost_usd?: number;
-  latency_ms?: number;
-  token_count?: number;
 }
 
 // Open a run AND ingest a CLI upload in one shot. Used by the combined
@@ -373,15 +410,15 @@ export async function submitRun(input: {
   return ingestCliUpload(run.id, input.payload);
 }
 
-// Ingest a CLI upload into the run + cases tables atomically (best-effort —
-// neon-http doesn't support transactions; v0 takes the risk of partial writes).
+// Ingest a CLI upload into the run + cases tables.
+// (neon-http doesn't support transactions; v0 takes the risk of partial writes.)
 export async function ingestCliUpload(
   runId: string,
   payload: CliUpload,
 ): Promise<RunRow | null> {
   const now = new Date();
 
-  // wipe any prior case rows for this run (idempotent re-upload)
+  // Wipe any prior case rows for this run (idempotent re-upload).
   await db.delete(cases).where(eq(cases.run_id, runId));
 
   if (payload.cases.length > 0) {
@@ -399,19 +436,39 @@ export async function ingestCliUpload(
     );
   }
 
+  // Use the grader-supplied summary, or auto-compute from cases.
+  const summary = payload.summary ?? autoSummary(payload.cases);
+
+  // Extract well-known keys to denormalized columns (for fast SQL sort);
+  // also stash the full summary as jsonb for rendering anything extra.
+  const cases_total = payload.cases.length;
+  const cases_passed = summary.n_passed ?? 0;
+  const cases_skipped =
+    summary.n_skipped ?? payload.cases.filter((c) => c.skipped).length;
+  const cases_failed = Math.max(
+    0,
+    (summary.n_total ?? cases_total) - cases_passed - cases_skipped,
+  );
+
+  const started = payload.started_at ? new Date(payload.started_at) : null;
+  const finished = payload.finished_at ? new Date(payload.finished_at) : now;
+
   const [row] = await db
     .update(runs)
     .set({
       status: "scored",
-      passed: payload.grader_metrics.passed,
-      total_score: payload.grader_metrics.score,
-      cases_passed: payload.run_counts.passed,
-      cases_failed: payload.run_counts.failed,
-      cases_skipped: payload.run_counts.skipped,
-      cost_usd: payload.cost_usd ?? null,
-      latency_ms: payload.latency_ms ?? null,
-      token_count: payload.token_count ?? null,
-      finished_at: now,
+      passed: summary.passed,
+      total_score: summary.score,
+      cases_passed,
+      cases_failed,
+      cases_skipped,
+      cost_usd: summary.cost_usd_total ?? null,
+      latency_ms: summary.latency_ms_total ?? null,
+      token_count: summary.tokens_total ?? null,
+      grader_metrics: summary as Record<string, unknown>,
+      metadata: payload.metadata ?? {},
+      started_at: started,
+      finished_at: finished,
       scored_at: now,
     })
     .where(eq(runs.id, runId))

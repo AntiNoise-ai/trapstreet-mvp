@@ -89,6 +89,27 @@ export default async function RunDetailPage({
         </section>
       )}
 
+      {hasContent(run.grader_metrics) && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-lg font-semibold">Run summary</h2>
+          <div className="rounded border border-[var(--border)] p-4">
+            <GraderMetrics m={run.grader_metrics as Record<string, unknown>} />
+          </div>
+        </section>
+      )}
+
+      {hasContent(run.metadata) && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-lg font-semibold">Solution metadata</h2>
+          <p className="mb-3 text-xs text-[var(--muted)]">
+            Self-reported by the runner. Not validated.
+          </p>
+          <div className="rounded border border-[var(--border)] p-4">
+            <KeyValueGrid kv={run.metadata as Record<string, unknown>} />
+          </div>
+        </section>
+      )}
+
       {cases.length > 0 && (
         <section>
           <h2 className="mb-3 text-lg font-semibold">Per-case results</h2>
@@ -204,5 +225,123 @@ function MetricsBadges({ metrics }: { metrics: unknown }) {
         </span>
       ))}
     </span>
+  );
+}
+
+function hasContent(v: unknown): boolean {
+  return !!v && typeof v === "object" && Object.keys(v).length > 0;
+}
+
+// Renders runs.grader_metrics — well-known keys with friendly labels,
+// then anything else as a key=value badge. `by_category` gets a small
+// inline breakdown.
+const FRIENDLY_LABELS: Record<string, string> = {
+  passed: "passed",
+  score: "score",
+  n_passed: "passed cases",
+  n_total: "total cases",
+  n_skipped: "skipped cases",
+  latency_ms_total: "latency total",
+  latency_ms_median: "latency median",
+  latency_ms_p95: "latency p95",
+  cost_usd_total: "cost total",
+  tokens_total: "tokens total",
+  threshold: "pass threshold",
+};
+
+function GraderMetrics({ m }: { m: Record<string, unknown> }) {
+  const wellKnown = Object.entries(m).filter(
+    ([k]) => k in FRIENDLY_LABELS,
+  );
+  const byCategory =
+    m.by_category && typeof m.by_category === "object"
+      ? (m.by_category as Record<string, number>)
+      : null;
+  const others = Object.entries(m).filter(
+    ([k]) => !(k in FRIENDLY_LABELS) && k !== "by_category",
+  );
+
+  return (
+    <div className="space-y-3">
+      <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+        {wellKnown.map(([k, v]) => (
+          <div key={k} className="flex justify-between border-b border-[var(--border)] py-1">
+            <dt className="text-[var(--muted)]">{FRIENDLY_LABELS[k]}</dt>
+            <dd>{renderMetricValue(k, v)}</dd>
+          </div>
+        ))}
+      </dl>
+
+      {byCategory && Object.keys(byCategory).length > 0 && (
+        <div>
+          <p className="mb-2 text-[10px] uppercase tracking-widest text-[var(--muted)]">
+            score by category
+          </p>
+          <div className="space-y-1">
+            {Object.entries(byCategory).map(([cat, pct]) => (
+              <div key={cat} className="flex items-center gap-3 text-xs">
+                <span className="w-32 text-[var(--muted)]">{cat}</span>
+                <div className="h-2 flex-1 overflow-hidden rounded bg-[var(--border)]">
+                  <div
+                    className="h-full bg-[var(--accent)]"
+                    style={{ width: `${Math.round(pct * 100)}%` }}
+                  />
+                </div>
+                <span className="w-12 text-right">
+                  {(pct * 100).toFixed(0)}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {others.length > 0 && (
+        <div>
+          <p className="mb-2 text-[10px] uppercase tracking-widest text-[var(--muted)]">
+            extras
+          </p>
+          <MetricsBadges metrics={Object.fromEntries(others)} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function renderMetricValue(key: string, v: unknown): React.ReactNode {
+  if (typeof v === "boolean") {
+    return v ? (
+      <span className="text-[var(--accent)]">✓</span>
+    ) : (
+      <span className="text-red-400">✗</span>
+    );
+  }
+  if (typeof v === "number") {
+    if (key.startsWith("latency_ms")) {
+      return v < 1000 ? `${v} ms` : `${(v / 1000).toFixed(2)} s`;
+    }
+    if (key.startsWith("cost_usd")) {
+      return `$${v < 0.01 ? v.toFixed(4) : v.toFixed(3)}`;
+    }
+    if (key === "score" || key === "threshold") {
+      return v.toFixed(3);
+    }
+    return v.toLocaleString();
+  }
+  return String(v);
+}
+
+function KeyValueGrid({ kv }: { kv: Record<string, unknown> }) {
+  return (
+    <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+      {Object.entries(kv).map(([k, v]) => (
+        <div key={k} className="flex justify-between gap-3 border-b border-[var(--border)] py-1">
+          <dt className="text-[var(--muted)]">{k}</dt>
+          <dd className="break-all text-right text-[var(--foreground)]">
+            {typeof v === "object" ? JSON.stringify(v) : String(v)}
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }

@@ -129,20 +129,28 @@ export const runs = pgTable("runs", {
     .references(() => runners.id, { onDelete: "cascade" }),
   status: text("status").$type<RunStatus>().notNull(),
 
-  // Final scoring summary (from grader_metrics).
+  // ── Well-known fields extracted from the run summary for fast SQL sort ─
   passed: boolean("passed"),
   total_score: doublePrecision("total_score"),
-
-  // Case-count summary (from run_counts).
   cases_passed: integer("cases_passed").notNull().default(0),
   cases_failed: integer("cases_failed").notNull().default(0),
   cases_skipped: integer("cases_skipped").notNull().default(0),
-
-  // Optional self-reported samples — CLI doesn't emit these, but AI runners
-  // may attach them.
   cost_usd: doublePrecision("cost_usd"),
   latency_ms: integer("latency_ms"),
   token_count: integer("token_count"),
+
+  // ── Full grader output (everything the grader.py wrote, verbatim) ─────
+  // Contains the same well-known keys as above plus task-specific extras
+  // like by_category, latency_ms_median, etc. The well-known columns are
+  // a denormalized view of this for indexing/sorting; this jsonb is the
+  // source of truth for rendering anything beyond the headline.
+  grader_metrics: jsonb("grader_metrics").notNull().default({}),
+
+  // ── Solution metadata (self-reported, from trap.yaml metadata: block) ─
+  // e.g. { model: "claude-3.5-sonnet", framework: "claude-code-skill",
+  //        max_tokens: 8000, system_prompt: "file:./prompt.md" }
+  // Never validated, never trusted as truth; just stored + displayed.
+  metadata: jsonb("metadata").notNull().default({}),
 
   // Misc.
   output_uri: text("output_uri"),

@@ -14,6 +14,8 @@ import { ERR, ok } from "@/lib/api";
 //     -H "authorization: Bearer ts_..." \
 //     --data-binary @.trap/word-count/<ts>/report.json
 //
+// Wire format: see trapstreet/docs/scoring-and-metrics.md "Upload protocol".
+//
 // Response: { run, view_url } — view_url is a hint for terminals to print
 // a clickable link.
 export async function POST(
@@ -52,26 +54,29 @@ export async function POST(
 }
 
 function validate(body: unknown): { error: string | null } {
-  if (!body || typeof body !== "object") return { error: "body must be an object" };
+  if (!body || typeof body !== "object")
+    return { error: "body must be an object" };
   const b = body as Record<string, unknown>;
-  if (!b.task || typeof b.task !== "object") return { error: "task is required" };
+  if (typeof b.task_id !== "string")
+    return { error: "task_id is required (string)" };
   if (!Array.isArray(b.cases)) return { error: "cases must be an array" };
-  if (!b.run_counts || typeof b.run_counts !== "object")
-    return { error: "run_counts is required" };
-  const rc = b.run_counts as Record<string, unknown>;
-  if (
-    typeof rc.passed !== "number" ||
-    typeof rc.failed !== "number" ||
-    typeof rc.skipped !== "number"
-  ) {
-    return { error: "run_counts.passed/failed/skipped must be numbers" };
+
+  // summary is optional — server auto-computes if absent. When present,
+  // require the two headline keys.
+  if (b.summary !== undefined) {
+    if (!b.summary || typeof b.summary !== "object")
+      return { error: "summary must be an object when present" };
+    const s = b.summary as Record<string, unknown>;
+    if (typeof s.passed !== "boolean")
+      return { error: "summary.passed must be a boolean" };
+    if (typeof s.score !== "number")
+      return { error: "summary.score must be a number" };
   }
-  if (!b.grader_metrics || typeof b.grader_metrics !== "object")
-    return { error: "grader_metrics is required" };
-  const gm = b.grader_metrics as Record<string, unknown>;
-  if (typeof gm.passed !== "boolean")
-    return { error: "grader_metrics.passed must be a boolean" };
-  if (typeof gm.score !== "number")
-    return { error: "grader_metrics.score must be a number" };
+
+  // metadata is optional but if present must be an object
+  if (b.metadata !== undefined && (b.metadata === null || typeof b.metadata !== "object")) {
+    return { error: "metadata must be an object when present" };
+  }
+
   return { error: null };
 }

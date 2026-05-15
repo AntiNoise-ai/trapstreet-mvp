@@ -12,6 +12,12 @@ tasks:
     file_outputs:
       - frequencies.json
       - summary.json
+    # Self-reported "Solution metadata" — never validated by trapstreet,
+    # shown on the run detail page so the leaderboard isn't a black box.
+    # Edit these to describe your actual solution.
+    metadata:
+      framework: stdlib-python
+      notes: reference solution, pure stdlib
 
   run:
     cmd: uv run python word_count.py

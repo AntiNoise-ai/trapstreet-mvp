@@ -87,7 +87,8 @@ def run(
     task_yaml_loader = TrapTaskLoader.from_task(task_obj, trap_yaml_loader.trap_dir)
     active_cases = task_yaml_loader.cases_with_tags(tags)
 
-    ts = datetime.now().isoformat(timespec="seconds")
+    started_at = datetime.now()
+    ts = started_at.isoformat(timespec="seconds")
     trap_run_dir = workspace.resolve() / task_obj.name / ts
 
     runner = TaskRunner(
@@ -98,9 +99,15 @@ def run(
         task_outputs_dir=trap_run_dir,
     )
     case_results, grader_metrics = runner.run(active_cases, fail_fast=fail_fast)
+    finished_at = datetime.now()
 
     report_data = ReportSaver.save(
-        trap_run_dir, case_results, task_obj, grader_metrics=grader_metrics
+        run_dir=trap_run_dir,
+        cases=case_results,
+        task=task_obj,
+        started_at=started_at,
+        finished_at=finished_at,
+        grader_metrics=grader_metrics,
     )
     renderer_factory(output).render(report_data)
 

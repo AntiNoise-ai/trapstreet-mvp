@@ -61,24 +61,32 @@ class RichRenderer(BaseRenderer):
         return table
 
     def _build_summary(self, data: ReportData) -> Panel:
+        s = data.summary
+        n_passed = s.n_passed or 0
+        n_total = s.n_total or 0
+        n_skipped = s.n_skipped or 0
+        n_failed = max(0, n_total - n_passed - n_skipped)
         stats = []
-        if data.run_counts.passed:
-            stats.append(f"[bold green]{data.run_counts.passed} passed[/bold green]")
-        if data.run_counts.failed:
-            stats.append(f"[bold red]{data.run_counts.failed} failed[/bold red]")
-        if data.run_counts.skipped:
-            stats.append(f"[dim]{data.run_counts.skipped} skipped[/dim]")
+        if n_passed:
+            stats.append(f"[bold green]{n_passed} passed[/bold green]")
+        if n_failed:
+            stats.append(f"[bold red]{n_failed} failed[/bold red]")
+        if n_skipped:
+            stats.append(f"[dim]{n_skipped} skipped[/dim]")
 
         rows: list[tuple[str, Text | str]] = [
-            ("task", Text(data.task.name, style="bold")),
-            ("cmd", Text(data.task.cmd, style="dim")),
+            ("task", Text(data.task_id, style="bold")),
             ("result", Text.from_markup(" · ".join(stats))),
         ]
-        if data.task.description:
-            rows.insert(1, ("desc", Text(data.task.description, style="dim")))
-        if data.grader_metrics is not None:
-            parts = [self._render_metric_cell(v) + f" {k}" for k, v in data.grader_metrics.items()]
-            rows.append(("grader", Text.from_markup("  ".join(parts))))
+        # Render summary as a compact key/value strip — score, passed, plus
+        # any well-known or extra grader-emitted keys.
+        summary_dump = s.model_dump(exclude_none=True)
+        # Drop counts (already shown in `result` row) to keep this terse.
+        for k in ("n_passed", "n_total", "n_skipped"):
+            summary_dump.pop(k, None)
+        if summary_dump:
+            parts = [self._render_metric_cell(v) + f" {k}" for k, v in summary_dump.items()]
+            rows.append(("summary", Text.from_markup("  ".join(parts))))
 
         grid = Table.grid(padding=(0, 2))
         grid.add_column(style="dim", justify="right")
