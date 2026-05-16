@@ -66,6 +66,54 @@ export async function fetchRaw(
   return res.text();
 }
 
+// Direct GitHub web URL into a specific file in the task's source.
+// Used when we can't (or don't want to) fetch the file content inline
+// — e.g. for PDFs and other binaries.
+export function ghFileUrl(ref: string, relPath: string): string {
+  const { owner, repo, taskPath } = splitRef(ref);
+  return `https://github.com/${owner}/${repo}/blob/main/${
+    taskPath ? taskPath + "/" : ""
+  }${relPath}`;
+}
+
+const TEXT_EXTS = new Set([
+  ".txt",
+  ".md",
+  ".json",
+  ".yaml",
+  ".yml",
+  ".csv",
+  ".py",
+  ".js",
+  ".ts",
+  ".tsx",
+  ".jsx",
+  ".sh",
+  ".html",
+  ".css",
+  ".toml",
+  ".lock",
+]);
+
+// Cheap extension-based check — if it's not a known text format we
+// treat it as binary and skip the content fetch (avoids pulling
+// multi-MB PDFs that we can't display anyway).
+export function isTextFile(name: string): boolean {
+  const dot = name.lastIndexOf(".");
+  if (dot < 0) return false;
+  return TEXT_EXTS.has(name.slice(dot).toLowerCase());
+}
+
+// Pretty-print JSON if it parses; otherwise pass through. Many tasks
+// store answer.json as a single compact line.
+export function prettyJson(s: string): string {
+  try {
+    return JSON.stringify(JSON.parse(s), null, 2);
+  } catch {
+    return s;
+  }
+}
+
 export interface TaskCase {
   id: string;
   description?: string;
