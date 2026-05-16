@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { prefillTaskAction } from "./actions";
 
 const METRICS = [
   { value: "total_score", label: "score (higher better)" },
@@ -18,6 +19,10 @@ export default function TaskForm({
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [prefillUrl, setPrefillUrl] = useState("");
+  const [prefilling, setPrefilling] = useState(false);
+  const [prefillNote, setPrefillNote] = useState<string | null>(null);
+  const [showOptional, setShowOptional] = useState(false);
   const [form, setForm] = useState({
     id: "",
     name: "",
@@ -33,6 +38,36 @@ export default function TaskForm({
 
   function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [k]: v }));
+  }
+
+  async function handlePrefill() {
+    if (!prefillUrl.trim()) return;
+    setPrefilling(true);
+    setPrefillNote(null);
+    try {
+      const { result, warning } = await prefillTaskAction(prefillUrl);
+      setForm((prev) => ({
+        ...prev,
+        id: result.id ?? prev.id,
+        name: result.name ?? prev.name,
+        track: result.track ?? prev.track,
+        description: result.description ?? prev.description,
+        traptask_ref: result.traptask_ref ?? prev.traptask_ref,
+      }));
+      const filled = ["id", "name", "track", "description", "traptask_ref"]
+        .filter((k) => result[k as keyof typeof result])
+        .join(", ");
+      setPrefillNote(
+        warning ??
+          (filled ? `Filled ${filled}. Review + tweak before creating.` : null),
+      );
+    } catch (e) {
+      setPrefillNote(
+        e instanceof Error ? `Couldn't fetch: ${e.message}` : "Prefill failed.",
+      );
+    } finally {
+      setPrefilling(false);
+    }
   }
 
   async function submit(e: React.FormEvent) {
@@ -58,7 +93,6 @@ export default function TaskForm({
     }
   }
 
-  // ranking_direction defaults: latency/cost = asc, score/cases = desc
   function onMetricChange(v: string) {
     set("ranking_metric", v);
     const isLowerBetter = v === "latency_ms" || v === "cost_usd";
@@ -66,138 +100,197 @@ export default function TaskForm({
   }
 
   return (
-    <form onSubmit={submit} className="space-y-5">
-      <Row label="id" hint="lowercase, dash-separated. shows in URL: /tasks/<id>">
-        <input
-          required
-          pattern="[a-z0-9-]+"
-          placeholder="my-task"
-          value={form.id}
-          onChange={(e) => set("id", e.target.value)}
-          className="w-full rounded border border-[var(--border)] bg-transparent px-3 py-2 outline-none focus:border-[var(--accent)]"
-        />
-      </Row>
-
-      <Row label="name">
-        <input
-          required
-          placeholder="A short, human-readable title"
-          value={form.name}
-          onChange={(e) => set("name", e.target.value)}
-          className="w-full rounded border border-[var(--border)] bg-transparent px-3 py-2 outline-none focus:border-[var(--accent)]"
-        />
-      </Row>
-
-      <Row
-        label="track"
-        hint={
-          existingTracks.length > 0
-            ? `grouping in the home grid. existing: ${existingTracks.join(", ")}`
-            : "grouping in the home grid (e.g. examples, pdf-reader)"
-        }
-      >
-        <input
-          required
-          list="existing-tracks"
-          placeholder="examples"
-          value={form.track}
-          onChange={(e) => set("track", e.target.value)}
-          className="w-full rounded border border-[var(--border)] bg-transparent px-3 py-2 outline-none focus:border-[var(--accent)]"
-        />
-        <datalist id="existing-tracks">
-          {existingTracks.map((t) => (
-            <option key={t} value={t} />
-          ))}
-        </datalist>
-      </Row>
-
-      <Row label="description">
-        <textarea
-          rows={2}
-          placeholder="One-liner describing the task"
-          value={form.description}
-          onChange={(e) => set("description", e.target.value)}
-          className="w-full rounded border border-[var(--border)] bg-transparent px-3 py-2 outline-none focus:border-[var(--accent)]"
-        />
-      </Row>
-
-      <Row label="traptask_ref" hint="GitHub path to the traptask directory (org/repo/path)">
-        <input
-          required
-          placeholder="AntiNoise-ai/trapstreet-tasks/tasks/<name>"
-          value={form.traptask_ref}
-          onChange={(e) => set("traptask_ref", e.target.value)}
-          className="w-full rounded border border-[var(--border)] bg-transparent px-3 py-2 outline-none focus:border-[var(--accent)]"
-        />
-      </Row>
-
-      <Row label="ranking metric" hint="what column the leaderboard sorts by">
+    <form onSubmit={submit} className="space-y-6">
+      {/* ─── auto-fill ────────────────────────────────────────────── */}
+      <section className="rounded border border-[var(--border)] p-4">
+        <p className="mb-1 text-[10px] uppercase tracking-widest text-[var(--accent)]">
+          paste a GitHub task URL to auto-fill
+        </p>
+        <p className="mb-3 text-xs text-[var(--muted)]">
+          We&apos;ll parse the URL + read the repo&apos;s README to
+          prefill id, name, track, description, and traptask_ref. You
+          review + tweak below.
+        </p>
         <div className="flex gap-2">
-          <select
-            value={form.ranking_metric}
-            onChange={(e) => onMetricChange(e.target.value)}
-            className="flex-1 rounded border border-[var(--border)] bg-transparent px-3 py-2 outline-none focus:border-[var(--accent)]"
+          <input
+            type="url"
+            value={prefillUrl}
+            onChange={(e) => setPrefillUrl(e.target.value)}
+            placeholder="https://github.com/org/repo/tree/main/tasks/your-task"
+            className="flex-1 rounded border border-[var(--border)] bg-transparent px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+          />
+          <button
+            type="button"
+            onClick={handlePrefill}
+            disabled={prefilling || !prefillUrl.trim()}
+            className="rounded border border-[var(--accent)] px-4 py-2 text-sm text-[var(--accent)] hover:bg-[var(--accent)]/10 disabled:opacity-50"
           >
-            {METRICS.map((m) => (
-              <option key={m.value} value={m.value} className="bg-[var(--background)]">
-                {m.label}
-              </option>
-            ))}
-          </select>
+            {prefilling ? "fetching…" : "auto-fill"}
+          </button>
         </div>
-      </Row>
+        {prefillNote && (
+          <p className="mt-2 text-xs text-[var(--muted)]">{prefillNote}</p>
+        )}
+      </section>
 
-      <Row label="rules" hint="Markdown — sections, lists, **bold**, `code`, ``` fences supported">
-        <textarea
-          rows={6}
-          placeholder="## Rules\n\n- Rule one\n- Rule two"
-          value={form.rules_md}
-          onChange={(e) => set("rules_md", e.target.value)}
-          className="w-full rounded border border-[var(--border)] bg-transparent px-3 py-2 font-mono text-xs outline-none focus:border-[var(--accent)]"
-        />
-      </Row>
-
-      <Row label="inputs · outputs · scoring" hint="Markdown — concrete contract for one sample case">
-        <textarea
-          rows={8}
-          placeholder="## Example case: `basic`\n\n### Input\n\n```\nhello\n```"
-          value={form.io_md}
-          onChange={(e) => set("io_md", e.target.value)}
-          className="w-full rounded border border-[var(--border)] bg-transparent px-3 py-2 font-mono text-xs outline-none focus:border-[var(--accent)]"
-        />
-      </Row>
-
-      <Row label="visibility">
-        <div className="flex gap-3 text-sm">
-          <label className="flex items-center gap-2">
+      {/* ─── required ─────────────────────────────────────────────── */}
+      <section>
+        <p className="mb-3 text-[10px] uppercase tracking-widest text-[var(--muted)]">
+          required
+        </p>
+        <div className="space-y-5">
+          <Row label="id" required hint="lowercase / digits / dashes. shows in URL: /tasks/<id>">
             <input
-              type="radio"
-              name="visibility"
-              value="public"
-              checked={form.visibility === "public"}
-              onChange={() => set("visibility", "public")}
+              required
+              pattern="[a-z0-9-]+"
+              placeholder="my-task"
+              value={form.id}
+              onChange={(e) => set("id", e.target.value)}
+              className="w-full rounded border border-[var(--border)] bg-transparent px-3 py-2 outline-none focus:border-[var(--accent)] invalid:border-red-500"
             />
-            <span>public — show in home grid</span>
-          </label>
-          <label className="flex items-center gap-2">
+          </Row>
+
+          <Row label="name" required>
             <input
-              type="radio"
-              name="visibility"
-              value="private"
-              checked={form.visibility === "private"}
-              onChange={() => set("visibility", "private")}
+              required
+              placeholder="A short, human-readable title"
+              value={form.name}
+              onChange={(e) => set("name", e.target.value)}
+              className="w-full rounded border border-[var(--border)] bg-transparent px-3 py-2 outline-none focus:border-[var(--accent)] invalid:border-red-500"
             />
-            <span>private — only you</span>
-          </label>
+          </Row>
+
+          <Row
+            label="traptask_ref"
+            required
+            hint="GitHub path: org/repo/path/to/task — auto-filled if you used the URL above"
+          >
+            <input
+              required
+              placeholder="AntiNoise-ai/trapstreet-tasks/tasks/<your-task>"
+              value={form.traptask_ref}
+              onChange={(e) => set("traptask_ref", e.target.value)}
+              className="w-full rounded border border-[var(--border)] bg-transparent px-3 py-2 outline-none focus:border-[var(--accent)] invalid:border-red-500"
+            />
+          </Row>
         </div>
-      </Row>
+      </section>
+
+      {/* ─── optional ─────────────────────────────────────────────── */}
+      <details
+        open={showOptional}
+        onToggle={(e) => setShowOptional((e.target as HTMLDetailsElement).open)}
+        className="rounded border border-[var(--border)]"
+      >
+        <summary className="cursor-pointer list-none p-4 text-[10px] uppercase tracking-widest text-[var(--muted)] [&::-webkit-details-marker]:hidden">
+          {showOptional ? "▾" : "▸"} optional — defaults work for most tasks
+        </summary>
+        <div className="space-y-5 border-t border-[var(--border)] p-4">
+          <Row
+            label="track"
+            hint={
+              existingTracks.length > 0
+                ? `groups in the home grid. existing: ${existingTracks.join(", ")}. blank → "community".`
+                : "groups in the home grid. blank → defaults to 'community'."
+            }
+          >
+            <input
+              list="existing-tracks"
+              placeholder="examples"
+              value={form.track}
+              onChange={(e) => set("track", e.target.value)}
+              className="w-full rounded border border-[var(--border)] bg-transparent px-3 py-2 outline-none focus:border-[var(--accent)]"
+            />
+            <datalist id="existing-tracks">
+              {existingTracks.map((t) => (
+                <option key={t} value={t} />
+              ))}
+            </datalist>
+          </Row>
+
+          <Row label="description" hint="one-line summary shown on the home grid">
+            <textarea
+              rows={2}
+              placeholder="One-liner describing what this task tests"
+              value={form.description}
+              onChange={(e) => set("description", e.target.value)}
+              className="w-full rounded border border-[var(--border)] bg-transparent px-3 py-2 outline-none focus:border-[var(--accent)]"
+            />
+          </Row>
+
+          <Row label="ranking metric" hint="how the leaderboard sorts">
+            <select
+              value={form.ranking_metric}
+              onChange={(e) => onMetricChange(e.target.value)}
+              className="w-full rounded border border-[var(--border)] bg-transparent px-3 py-2 outline-none focus:border-[var(--accent)]"
+            >
+              {METRICS.map((m) => (
+                <option
+                  key={m.value}
+                  value={m.value}
+                  className="bg-[var(--background)]"
+                >
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </Row>
+
+          <Row label="rules" hint="Markdown: ## h2, - list, ``` fences, **bold**, `code`">
+            <textarea
+              rows={6}
+              placeholder={"## Rules\n\n- Rule one\n- Rule two"}
+              value={form.rules_md}
+              onChange={(e) => set("rules_md", e.target.value)}
+              className="w-full rounded border border-[var(--border)] bg-transparent px-3 py-2 font-mono text-xs outline-none focus:border-[var(--accent)]"
+            />
+          </Row>
+
+          <Row label="inputs · outputs · scoring" hint="Markdown — concrete contract for one sample case">
+            <textarea
+              rows={8}
+              placeholder={"## Example case: `basic`\n\n### Input\n\n```\nhello\n```"}
+              value={form.io_md}
+              onChange={(e) => set("io_md", e.target.value)}
+              className="w-full rounded border border-[var(--border)] bg-transparent px-3 py-2 font-mono text-xs outline-none focus:border-[var(--accent)]"
+            />
+          </Row>
+
+          <Row label="visibility">
+            <div className="flex gap-4 text-sm">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="visibility"
+                  value="public"
+                  checked={form.visibility === "public"}
+                  onChange={() => set("visibility", "public")}
+                />
+                <span>public</span>
+                <span className="text-[var(--muted)]">— in home grid</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="visibility"
+                  value="private"
+                  checked={form.visibility === "private"}
+                  onChange={() => set("visibility", "private")}
+                />
+                <span>private</span>
+                <span className="text-[var(--muted)]">— only you</span>
+              </label>
+            </div>
+          </Row>
+        </div>
+      </details>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 
       <button
         type="submit"
         disabled={pending}
-        className="rounded border border-[var(--accent)] px-4 py-2 text-sm text-[var(--accent)] hover:bg-[var(--accent)]/10 disabled:opacity-50"
+        className="rounded border border-[var(--accent)] px-5 py-2 text-sm text-[var(--accent)] hover:bg-[var(--accent)]/10 disabled:opacity-50"
       >
         {pending ? "creating…" : "create task"}
       </button>
@@ -208,16 +301,19 @@ export default function TaskForm({
 function Row({
   label,
   hint,
+  required,
   children,
 }: {
   label: string;
   hint?: string;
+  required?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <label className="block">
       <span className="mb-1 block text-xs uppercase tracking-widest text-[var(--muted)]">
         {label}
+        {required && <span className="ml-1 text-red-400">*</span>}
       </span>
       {children}
       {hint && (

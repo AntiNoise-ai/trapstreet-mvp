@@ -2,73 +2,105 @@
 // grows past a single page, split into multiple route files.
 
 export const BUILD_A_TASK_MD = String.raw`
-## The mental model
+We're going to build a task called \`sum-two-numbers\`. Runners get
+two ints in a JSON file. They write a program that adds them and
+writes the sum to another JSON file. We score whether their answer
+matches ours. Whole thing takes about 15 minutes.
 
-\`tp\` decouples the **task author** (the person defining what counts
-as correct) from the **solution author** (the person writing the code
-under test). The two never import each other. They talk through a
-small IO contract — environment variables and stdin/stdout. \`tp run\`
-is the glue.
+## What you're making
 
-You can be both roles. But thinking about them separately is how the
-abstraction stays clean.
+A task is a folder. Four things live in it:
 
-## Who owns what
+- **\`inputs/<case>/\`** — what we hand the runner's program
+- **\`expected/<case>/\`** — what we expected back
+- **\`judge.py\`** — scores one case
+- **\`grader.py\`** — aggregates case scores into a run-level pass/fail
 
-**Task author** owns these files (usually shipped in one GitHub repo):
+Plus a \`traptask.yaml\` that wires them together. That's the whole
+contract — the runner's solution and your task talk through files
+and environment variables only.
 
-- \`traptask.yaml\` — declares cases + how to invoke judge/grader
-- \`inputs/<case_id>/\` — input files per case
-- \`expected/<case_id>/\` — expected output files per case (optional for non-reference judges)
-- \`judge.py\` — scores ONE case
-- \`grader.py\` — aggregates all case scores into a run-level pass/score
-- \`pyproject.toml\` — judge/grader's Python env
+## Step 1 — make the case files
 
-**Solution author** owns:
-
-- \`trap.yaml\` — declares how to invoke their program + which task to point at
-- The program itself (any language, any binary)
-- \`pyproject.toml\` if the program is Python managed by uv
-
-## The IO contract — only 5 things
-
-\`tp run\` runs the solution once per case, passing:
-
-- \`INPUTS\` env var — JSON object \`{ "filename.ext": "/abs/path/to/file", ... }\` of every input file for this case
-- \`OUTPUTS\` env var — JSON object \`{ "filename.ext": "/abs/path/to/write", ... }\` for every output declared in \`trap.yaml\`'s \`file_outputs\`
-- stdin — if \`trap.yaml\` says \`inputs.stdin: foo.txt\`, that file's content is piped to stdin
-- stdout / stderr — captured automatically
-- exit code — captured automatically
-
-The judge gets a similar payload (\`TRAPTASK_PAYLOAD\` env var, JSON) with paths to outputs + expected + inputs. It writes its metrics JSON to stdout.
-
-That's it. No SDK to import. No subclasses. Just env vars and pipes.
-
-## Build a task from zero — "sum two numbers"
-
-### Step 1 · Task side (one GitHub repo)
-
-Create \`sum-task/\`:
-
-\`\`\`text
-sum-task/
-├── traptask.yaml
-├── pyproject.toml
-├── judge.py
-├── grader.py
-├── inputs/
-│   ├── basic/nums.json          { "a": 3, "b": 5 }
-│   ├── negatives/nums.json      { "a": -1, "b": -2 }
-│   └── zero/nums.json           { "a": 0, "b": 0 }
-└── expected/
-    ├── basic/sum.json           { "sum": 8 }
-    ├── negatives/sum.json       { "sum": -3 }
-    └── zero/sum.json            { "sum": 0 }
+\`\`\`bash
+mkdir -p sum-task/inputs/basic     sum-task/expected/basic
+mkdir -p sum-task/inputs/negatives sum-task/expected/negatives
+mkdir -p sum-task/inputs/zero      sum-task/expected/zero
 \`\`\`
 
-\`traptask.yaml\`:
+Inputs:
+
+\`\`\`bash
+echo '{"a":  3, "b":  5}' > sum-task/inputs/basic/nums.json
+echo '{"a": -1, "b": -2}' > sum-task/inputs/negatives/nums.json
+echo '{"a":  0, "b":  0}' > sum-task/inputs/zero/nums.json
+\`\`\`
+
+Expected outputs:
+
+\`\`\`bash
+echo '{"sum":  8}' > sum-task/expected/basic/sum.json
+echo '{"sum": -3}' > sum-task/expected/negatives/sum.json
+echo '{"sum":  0}' > sum-task/expected/zero/sum.json
+\`\`\`
+
+Three cases, three inputs, three expected outputs. The folder names
+under \`inputs/\` and \`expected/\` are the **case ids**.
+
+## Step 2 — write the judge
+
+\`judge.py\` runs once per case. It reads where the solution wrote its
+output (and where you put the expected answer), decides whether they
+match, and prints a JSON object containing at least a numeric \`score\`.
+
+\`\`\`python
+# sum-task/judge.py
+import json, os
+from pathlib import Path
+
+payload = json.loads(os.environ["TRAPTASK_PAYLOAD"])
+
+actual   = json.loads(Path(payload["outputs"]["sum.json"]).read_text())
+expected = json.loads(Path(payload["expected"]["sum.json"]).read_text())
+
+correct = actual.get("sum") == expected["sum"]
+print(json.dumps({
+    "score": 1.0 if correct else 0.0,
+    "correct": correct,
+}))
+\`\`\`
+
+That's it. \`TRAPTASK_PAYLOAD\` is a JSON string giving you absolute
+paths into the runner's output dir and your expected dir for this
+case. You read what's there, decide, print one line.
+
+## Step 3 — write the grader (or skip it)
+
+\`grader.py\` runs once at the end. It gets the list of case results
+and produces one run-level summary:
+
+\`\`\`python
+# sum-task/grader.py
+import json, os
+
+cases = json.loads(os.environ["TRAPTASK_PAYLOAD"])
+scores = [c["metrics"]["score"] for c in cases if c.get("metrics")]
+avg = sum(scores) / len(scores) if scores else 0
+print(json.dumps({
+    "passed": all(s == 1.0 for s in scores),
+    "score":  round(avg, 3),
+}))
+\`\`\`
+
+**You can skip writing \`grader.py\` entirely.** If it's missing, the
+server averages the case scores for you and calls it \`passed\` when
+the average crosses 0.8. Write your own only when you want a stricter
+rule (here we want **every** case at 1.0 to count as passed).
+
+## Step 4 — wire it up with traptask.yaml
 
 \`\`\`yaml
+# sum-task/traptask.yaml
 dirs:
   inputs: inputs/
   expected: expected/
@@ -85,32 +117,8 @@ grader:
   cmd: uv run python grader.py
 \`\`\`
 
-\`judge.py\` — scores ONE case:
-
-\`\`\`python
-import json, os
-from pathlib import Path
-
-p = json.loads(os.environ["TRAPTASK_PAYLOAD"])
-actual = json.loads(Path(p["outputs"]["sum.json"]).read_text())
-expected = json.loads(Path(p["expected"]["sum.json"]).read_text())
-
-correct = actual.get("sum") == expected["sum"]
-print(json.dumps({"correct": correct, "score": 1.0 if correct else 0.0}))
-\`\`\`
-
-\`grader.py\` — aggregates all cases:
-
-\`\`\`python
-import json, os
-
-cases = json.loads(os.environ["TRAPTASK_PAYLOAD"])
-scores = [c["metrics"]["score"] for c in cases if c.get("metrics")]
-total = sum(scores) / len(scores) if scores else 0
-print(json.dumps({"passed": all(s == 1.0 for s in scores), "score": total}))
-\`\`\`
-
-\`pyproject.toml\` — even if your judge has no deps, this lets \`uv run\` spin up a venv:
+You also need a \`pyproject.toml\` next to \`traptask.yaml\` so \`uv run\`
+can build a venv for judge/grader:
 
 \`\`\`toml
 [project]
@@ -120,80 +128,82 @@ requires-python = ">=3.12"
 dependencies = []
 \`\`\`
 
-Push to GitHub: \`https://github.com/<you>/sum-task\`.
+That's the task. Push the \`sum-task/\` folder up to a GitHub repo.
 
-### Step 2 · Solution side (your machine)
+## Step 5 — write the solution side
 
-Create \`my-sum-solution/\`:
+Now switch hats. As a runner, you make a different folder:
 
 \`\`\`yaml
-# trap.yaml
+# my-solution/trap.yaml
 tasks:
-  sum-two-numbers:
+  sum-two-numbers:                 # this name must match the task id on trapstreet
     cmd: uv run python solve.py
-    traptask: ../sum-task
+    traptask: ../sum-task          # path to your cloned task folder
     inputs:
-      files:
-        - nums.json
-    file_outputs:
-      - sum.json
+      files: [nums.json]
+    file_outputs: [sum.json]
 \`\`\`
 
-\`solve.py\`:
-
 \`\`\`python
+# my-solution/solve.py
 import json, os
 from pathlib import Path
 
-inputs = json.loads(os.environ["INPUTS"])
+inputs  = json.loads(os.environ["INPUTS"])
 outputs = json.loads(os.environ["OUTPUTS"])
 
 nums = json.loads(Path(inputs["nums.json"]).read_text())
-result = {"sum": nums["a"] + nums["b"]}
-
-Path(outputs["sum.json"]).write_text(json.dumps(result))
+Path(outputs["sum.json"]).write_text(json.dumps({"sum": nums["a"] + nums["b"]}))
 \`\`\`
 
-### Step 3 · Run it locally
+Run it:
 
 \`\`\`bash
-cd my-sum-solution
+cd my-solution
 tp run
 \`\`\`
 
-You should see all 3 cases pass with \`score=1.0\`. The full run report
-lands at \`.trap/sum-two-numbers/latest/report.json\`.
+All three cases should pass with score 1.0.
 
-### Step 4 · Register the task on trapstreet
+## Step 6 — publish on trapstreet
 
-Go to \`/tasks/new\` (sign in first). Fill the form:
-
-- **id**: \`sum-two-numbers\` — **must match** the key in your trap.yaml
-- **traptask_ref**: \`<your-github-user>/sum-task\` — points at the GitHub path of the task repo
-- **ranking metric**: \`total_score\` (default; \`latency_ms\` if it's a speed race)
-- **rules / inputs·outputs·scoring**: Markdown describing what's allowed and what the contract looks like
-- **visibility**: public (shows in the home grid) or private (only you)
-
-Submit. Your task now has its own leaderboard page.
-
-### Step 5 · Submit your run
+Go to \`/tasks/new\`, paste your task's GitHub URL into the auto-fill
+field, review the prefilled values, hit Create. Now anyone with the
+\`tp\` CLI can:
 
 \`\`\`bash
-tp submit
+tp run && tp submit sum-two-numbers
 \`\`\`
 
-\`tp submit\` finds \`.trap/sum-two-numbers/latest/report.json\`, POSTs
-it to \`/api/submit/sum-two-numbers\`, and prints a \`view_url\`
-linking back to this task's leaderboard with your score on it.
+…and their score lands on your task's leaderboard.
 
-Done. You're a runner.
+## What you didn't have to think about
 
-## Common pitfalls (and how to avoid them)
+- Test runner orchestration — \`tp\` runs each case in its own
+  subprocess, captures stdout, handles timeouts, you don't write any
+  of that.
+- File paths — you read \`INPUTS\` / \`OUTPUTS\` / \`TRAPTASK_PAYLOAD\`
+  env vars and never deal with cwd or relative paths.
+- Result storage — \`.trap/sum-two-numbers/<ts>/report.json\` is
+  produced automatically, ready to upload.
+- Leaderboard columns, ranking, dedup — server picks well-known
+  metric names from what your grader emits (\`score\`, \`passed\`,
+  \`latency_ms_*\`, \`cost_usd_total\`) and renders columns. Zero
+  config needed; see [the reference](/docs/reference) when you want
+  something custom.
 
-- **Task name must match in 3 places**: the key in solution \`trap.yaml\`, the trapstreet task \`id\`, and the \`tp submit <name>\` argument (if you pass one). When they don't match you'll get 404 or "no report found".
-- **Don't write \`.venv/bin/python ...\` in judge/grader \`cmd\`** — that assumes a venv was pre-built. Use \`uv run python ...\` — uv auto-creates and caches the venv.
-- **\`INPUTS\` / \`OUTPUTS\` keys are filenames, not paths**. \`INPUTS["nums.json"]\` is right; \`INPUTS["inputs/basic/nums.json"]\` is wrong.
-- **stdin is opt-in**. To get stdin in your solution, declare \`inputs.stdin: foo.txt\` in trap.yaml. Otherwise stdin is empty and you read from \`INPUTS\` paths.
-- **Cases are isolated**. Each case is a fresh subprocess with a fresh \`OUTPUTS\` dir. Don't rely on shared state between cases.
-- **\`traptask:\` is a relative path** when the task is on your local disk. For a real published task,you typically clone the task repo as a sibling of your solution dir, then \`traptask: ../sum-task\`.
+## Gotchas worth remembering
+
+- **Case ids are folder names.** \`inputs/basic/\` and
+  \`expected/basic/\` must match exactly.
+- **\`INPUTS\` / \`OUTPUTS\` keys are filenames, not paths.** Use
+  \`INPUTS["nums.json"]\`, not \`INPUTS["inputs/basic/nums.json"]\`.
+- **The task name must match in three places**: your trap.yaml's
+  top-level key, the trapstreet task id, and the argument you pass
+  to \`tp submit\`.
+- **Use \`uv run python ...\` in your cmd**, not
+  \`.venv/bin/python ...\`. The first runs in a venv that uv
+  auto-creates; the second only works if someone already set up
+  a venv.
 `;

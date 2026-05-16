@@ -35,7 +35,8 @@ export async function POST(req: Request) {
 
   const id = String(b.id ?? "").trim();
   const name = String(b.name ?? "").trim();
-  const track = String(b.track ?? "").trim();
+  // track is optional; defaults to "community" when blank
+  const track = String(b.track ?? "").trim() || "community";
   const description = String(b.description ?? "");
   const traptask_ref = String(b.traptask_ref ?? "").trim();
   const ranking_metric = String(b.ranking_metric ?? "total_score") as RankingMetric;
@@ -44,11 +45,11 @@ export async function POST(req: Request) {
   const io_md = String(b.io_md ?? "");
   const visibility = (b.visibility === "private" ? "private" : "public") as TaskVisibility;
 
+  // The 3 required fields. Everything else has a sensible default.
   if (!id || !/^[a-z0-9-]+$/.test(id)) {
     return ERR.invalid("id is required, lowercase letters / digits / dashes only");
   }
   if (!name) return ERR.invalid("name is required");
-  if (!track) return ERR.invalid("track is required");
   if (!traptask_ref) return ERR.invalid("traptask_ref is required");
   if (!ALLOWED_METRICS.includes(ranking_metric)) {
     return ERR.invalid("invalid ranking_metric");
