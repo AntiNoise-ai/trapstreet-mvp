@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTask, leaderboardEntries, type LeaderboardRow } from "@/lib/queries";
 import type { RankingMetric } from "@/db/schema";
-import { fmtCost, fmtLatency, fmtScore } from "@/lib/format";
+import { fmtCost, fmtLatency, fmtRelativeTime, fmtScore } from "@/lib/format";
 
 // Leaderboard tab. Header + tabs come from layout.tsx. The "Try it" and
 // "Submit your own" how-to-run blocks moved to /docs.
@@ -30,6 +30,11 @@ export default async function TaskLeaderboardPage({
           <Leaderboard entries={entries} metric={task.ranking_metric} />
         )}
       </section>
+
+      <p className="mb-2 text-xs text-[var(--muted)]">
+        Each row is a runner&apos;s best run on this task. Click a runner to
+        see their full submission history.
+      </p>
 
       <p className="text-xs text-[var(--muted)]">
         How to run this task → <Link href="/docs">docs</Link>
@@ -71,6 +76,7 @@ function Leaderboard({
           <th className={metric === "cost_usd" ? "text-[var(--accent)]" : ""}>
             cost
           </th>
+          <th>submitted</th>
         </tr>
       </thead>
       <tbody>
@@ -78,7 +84,8 @@ function Leaderboard({
           <tr key={e.run_id}>
             <td className="text-[var(--muted)]">{e.rank}</td>
             <td className="font-medium">
-              <Link href={`/runs/${e.run_id}`}>{e.runner_name}</Link>
+              {/* Runner name → runner detail (history). Run id badge → run detail. */}
+              <Link href={`/runners/${e.runner_id}`}>{e.runner_name}</Link>
             </td>
             <td
               className={
@@ -117,6 +124,9 @@ function Leaderboard({
               }
             >
               {fmtCost(e.cost_usd)}
+            </td>
+            <td className="text-[var(--muted)]">
+              <Link href={`/runs/${e.run_id}`}>{fmtRelativeTime(e.scored_at)}</Link>
             </td>
           </tr>
         ))}

@@ -1,8 +1,10 @@
 import { auth, signIn } from "@/auth";
+import { listTracks } from "@/lib/queries";
 import TaskForm from "./TaskForm";
 
 export default async function NewTaskPage() {
   const session = await auth();
+  const existingTracks = await listTracks();
 
   if (!session?.user) {
     return (
@@ -31,7 +33,7 @@ export default async function NewTaskPage() {
         and visibility. Once created, anyone with the <code className="text-[var(--foreground)]">tp</code>{" "}
         CLI can submit a run.
       </p>
-      <TaskForm />
+      <TaskForm existingTracks={existingTracks} />
     </div>
   );
 }

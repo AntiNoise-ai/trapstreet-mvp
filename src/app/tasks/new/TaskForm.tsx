@@ -10,7 +10,11 @@ const METRICS = [
   { value: "cases_passed", label: "cases_passed (higher better)" },
 ] as const;
 
-export default function TaskForm() {
+export default function TaskForm({
+  existingTracks = [],
+}: {
+  existingTracks?: string[];
+}) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,14 +88,27 @@ export default function TaskForm() {
         />
       </Row>
 
-      <Row label="track" hint="grouping in the home grid (e.g. examples, pdf-reader)">
+      <Row
+        label="track"
+        hint={
+          existingTracks.length > 0
+            ? `grouping in the home grid. existing: ${existingTracks.join(", ")}`
+            : "grouping in the home grid (e.g. examples, pdf-reader)"
+        }
+      >
         <input
           required
+          list="existing-tracks"
           placeholder="examples"
           value={form.track}
           onChange={(e) => set("track", e.target.value)}
           className="w-full rounded border border-[var(--border)] bg-transparent px-3 py-2 outline-none focus:border-[var(--accent)]"
         />
+        <datalist id="existing-tracks">
+          {existingTracks.map((t) => (
+            <option key={t} value={t} />
+          ))}
+        </datalist>
       </Row>
 
       <Row label="description">

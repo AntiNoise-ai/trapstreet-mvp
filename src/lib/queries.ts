@@ -481,6 +481,7 @@ export async function ingestCliUpload(
 
 export type LeaderboardRow = {
   rank: number;
+  runner_id: string;
   runner_name: string;
   run_id: string;
   task_id: string;
@@ -517,6 +518,10 @@ export async function leaderboardEntries(filter: {
   // sensible all-up cross-task default for the home grid summary.
   ranking_metric?: RankingMetric;
   ranking_direction?: RankingDirection;
+  // false (default) → dedup to each runner's best run per task. true →
+  // raw list of every scored run (used by the "all runs" view, runner
+  // history, etc.)
+  all?: boolean;
 }): Promise<LeaderboardRow[]> {
   const where = [eq(runs.status, "scored")];
   if (filter.task_id) where.push(eq(runs.task_id, filter.task_id));
@@ -546,6 +551,7 @@ export async function leaderboardEntries(filter: {
   const rows = await db
     .select({
       run_id: runs.id,
+      runner_id: runs.runner_id,
       task_id: runs.task_id,
       track: tasks.track,
       runner_name: runners.name,
@@ -564,8 +570,27 @@ export async function leaderboardEntries(filter: {
     .where(and(...where))
     .orderBy(primary, ...tiebreakers);
 
-  return rows.map((r, i) => ({
+  // Dedup to best run per (runner, task). Rows are already sorted by
+  // the ranking criteria, so the first row we see for a given key wins.
+  // Postgres has DISTINCT ON for this server-side, but Drizzle doesn't
+  // expose it cleanly; in-memory works fine at v0 scale.
+  const finalRows = filter.all
+    ? rows
+    : (() => {
+        const seen = new Set<string>();
+        const out: typeof rows = [];
+        for (const r of rows) {
+          const key = `${r.runner_name}|${r.task_id}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          out.push(r);
+        }
+        return out;
+      })();
+
+  return finalRows.map((r, i) => ({
     rank: i + 1,
+    runner_id: r.runner_id,
     runner_name: r.runner_name,
     run_id: r.run_id,
     task_id: r.task_id,
@@ -579,6 +604,32 @@ export async function leaderboardEntries(filter: {
     latency_ms: r.latency_ms,
     scored_at: r.scored_at!.toISOString(),
   }));
+}
+
+// Runner history — all runs across all tasks for one runner.
+// Sorted newest first.
+export async function listRunsByRunner(runnerId: string) {
+  return db
+    .select({
+      run_id: runs.id,
+      task_id: runs.task_id,
+      task_name: tasks.name,
+      status: runs.status,
+      passed: runs.passed,
+      total_score: runs.total_score,
+      cases_passed: runs.cases_passed,
+      cases_failed: runs.cases_failed,
+      cases_skipped: runs.cases_skipped,
+      cost_usd: runs.cost_usd,
+      latency_ms: runs.latency_ms,
+      scored_at: runs.scored_at,
+      created_at: runs.created_at,
+      error_message: runs.error_message,
+    })
+    .from(runs)
+    .innerJoin(tasks, eq(tasks.id, runs.task_id))
+    .where(eq(runs.runner_id, runnerId))
+    .orderBy(desc(runs.created_at));
 }
 
 // -----------------------------------------------------------------------------
