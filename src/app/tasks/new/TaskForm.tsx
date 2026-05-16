@@ -53,8 +53,22 @@ export default function TaskForm({
         track: result.track ?? prev.track,
         description: result.description ?? prev.description,
         traptask_ref: result.traptask_ref ?? prev.traptask_ref,
+        rules_md: result.rules_md ?? prev.rules_md,
+        io_md: result.io_md ?? prev.io_md,
       }));
-      const filled = ["id", "name", "track", "description", "traptask_ref"]
+      // Expand the optional drawer so the user can see what we filled there.
+      if (result.rules_md || result.io_md) {
+        setShowOptional(true);
+      }
+      const filled = [
+        "id",
+        "name",
+        "track",
+        "description",
+        "traptask_ref",
+        "rules_md",
+        "io_md",
+      ]
         .filter((k) => result[k as keyof typeof result])
         .join(", ");
       setPrefillNote(

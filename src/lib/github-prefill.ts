@@ -17,6 +17,8 @@ export interface PrefillResult {
   track: string;
   description: string;
   traptask_ref: string;
+  rules_md: string;
+  io_md: string;
 }
 
 /**
@@ -114,35 +116,25 @@ export async function prefillFromGithub(input: string): Promise<{
     traptask_ref,
   };
 
-  // README: first H1 → name; first non-empty paragraph after that → description.
+  // README: h1 → name, first paragraph → description, h2 sections → rules_md/io_md.
   try {
     const readme = await ghFetchRaw(parsed, "README.md");
     if (readme) {
-      const lines = readme.split("\n");
-      let foundH1 = false;
-      const para: string[] = [];
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!foundH1) {
-          if (trimmed.startsWith("# ")) {
-            out.name = trimmed.slice(2).trim();
-            foundH1 = true;
-          }
-          continue;
-        }
-        if (trimmed.startsWith("#")) {
-          if (para.length > 0) break;
-          continue;
-        }
-        if (trimmed === "" && para.length > 0) break;
-        if (trimmed !== "") para.push(trimmed);
+      const { h1, intro, sections } = splitReadmeIntoSections(readme);
+      if (h1) out.name = h1;
+      if (intro) out.description = intro.slice(0, 280);
+
+      const rulesSec = sections.filter((s) => classifySection(s.title) === "rules");
+      const ioSec = sections.filter((s) => classifySection(s.title) === "io");
+      if (rulesSec.length > 0) {
+        out.rules_md = rulesSec.map((s) => `## ${s.title}\n\n${s.body}`).join("\n\n");
       }
-      if (para.length > 0) {
-        out.description = para.join(" ").slice(0, 280);
+      if (ioSec.length > 0) {
+        out.io_md = ioSec.map((s) => `## ${s.title}\n\n${s.body}`).join("\n\n");
       }
     }
   } catch {
-    // ignore — we just won't have a name/description
+    // ignore — we just won't have a name/description/rules/io
   }
 
   // Fallbacks
@@ -151,6 +143,74 @@ export async function prefillFromGithub(input: string): Promise<{
   }
 
   return { result: out };
+}
+
+// Split a README into (h1, intro-paragraph, h2-sections). Anything before
+// the first h1 is discarded. The intro is whatever sits between the h1 and
+// the first h2 — collapsed to its first paragraph for the description.
+function splitReadmeIntoSections(md: string): {
+  h1?: string;
+  intro?: string;
+  sections: { title: string; body: string }[];
+} {
+  const lines = md.split("\n");
+  let h1: string | undefined;
+  const introLines: string[] = [];
+  const sections: { title: string; body: string[] }[] = [];
+  let phase: "pre-h1" | "intro" | "section" = "pre-h1";
+  let current: { title: string; body: string[] } | null = null;
+
+  for (const line of lines) {
+    if (!h1 && /^#\s+/.test(line)) {
+      h1 = line.replace(/^#\s+/, "").trim();
+      phase = "intro";
+      continue;
+    }
+    if (phase !== "pre-h1" && /^##\s+/.test(line)) {
+      current = { title: line.replace(/^##\s+/, "").trim(), body: [] };
+      sections.push(current);
+      phase = "section";
+      continue;
+    }
+    if (phase === "intro") {
+      introLines.push(line);
+    } else if (phase === "section" && current) {
+      current.body.push(line);
+    }
+  }
+
+  // Collapse intro down to its first paragraph for the description field.
+  const introText = introLines.join("\n").trim();
+  const firstPara = introText.split(/\n\s*\n/)[0]?.trim().replace(/\n+/g, " ");
+
+  return {
+    h1,
+    intro: firstPara || undefined,
+    sections: sections
+      .map((s) => ({ title: s.title, body: s.body.join("\n").trim() }))
+      .filter((s) => s.body.length > 0),
+  };
+}
+
+// Cheap heuristic: by section title, decide if a h2 is io/scoring/judging
+// (→ io_md) or anything else (→ rules_md). Defaults to rules.
+function classifySection(title: string): "io" | "rules" {
+  const t = title.toLowerCase();
+  const ioKeys = [
+    "input",
+    "output",
+    "score",
+    "scoring",
+    "judge",
+    "grader",
+    "grade",
+    "example",
+    "case",
+    "metric",
+    "check",
+    "verification",
+  ];
+  return ioKeys.some((k) => t.includes(k)) ? "io" : "rules";
 }
 
 function slugify(s: string): string {
