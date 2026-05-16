@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { createTask, ensureUserRow, getTask, listTasks } from "@/lib/queries";
+import { createTask, getTask, listTasks } from "@/lib/queries";
 import { ERR, ok } from "@/lib/api";
 import type { RankingDirection, RankingMetric, TaskVisibility } from "@/db/schema";
 
@@ -59,40 +59,18 @@ export async function POST(req: Request) {
     return ERR.conflict(`task id "${id}" already taken`);
   }
 
-  // Survive stale JWT cookies after a DB reset — same fallback as
-  // /api/cli/authorize. Without this, the FK on tasks.created_by
-  // explodes with no body and the client just sees "Unexpected end
-  // of JSON input".
-  try {
-    await ensureUserRow(session.user.id, {
-      name: session.user.name,
-      email: session.user.email,
-      image: session.user.image,
-    });
-  } catch (e) {
-    return ERR.internal(
-      e instanceof Error ? e.message : "could not ensure user row",
-    );
-  }
-
-  try {
-    const task = await createTask({
-      id,
-      name,
-      track,
-      description,
-      traptask_ref,
-      ranking_metric,
-      ranking_direction,
-      rules_md,
-      io_md,
-      visibility,
-      created_by: session.user.id,
-    });
-    return ok({ task });
-  } catch (e) {
-    return ERR.internal(
-      e instanceof Error ? e.message : "could not create task",
-    );
-  }
+  const task = await createTask({
+    id,
+    name,
+    track,
+    description,
+    traptask_ref,
+    ranking_metric,
+    ranking_direction,
+    rules_md,
+    io_md,
+    visibility,
+    created_by: session.user.id,
+  });
+  return ok({ task });
 }
