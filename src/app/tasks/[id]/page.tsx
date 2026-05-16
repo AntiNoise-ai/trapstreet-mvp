@@ -40,16 +40,23 @@ export default async function TaskLeaderboardPage({
         How to run this task → <Link href="/docs">docs</Link>
         {" · "}
         traptask source →{" "}
-        <a
-          href={`https://github.com/${task.traptask_ref}`}
-          target="_blank"
-          rel="noreferrer"
-        >
+        <a href={traptaskHref(task.traptask_ref)} target="_blank" rel="noreferrer">
           <code className="text-[var(--foreground)]">{task.traptask_ref}</code>
         </a>
       </p>
     </div>
   );
+}
+
+// GitHub needs `/tree/<branch>/` to navigate into a subdirectory — without
+// it, `github.com/<owner>/<repo>/<path>` 404s. We store traptask_ref as the
+// compact `owner/repo/path` shape, so insert the missing segment here.
+// Default branch = main; covers ~all public repos we care about.
+function traptaskHref(ref: string): string {
+  const parts = ref.split("/").filter(Boolean);
+  if (parts.length <= 2) return `https://github.com/${ref}`;
+  const [owner, repo, ...rest] = parts;
+  return `https://github.com/${owner}/${repo}/tree/main/${rest.join("/")}`;
 }
 
 function Leaderboard({
