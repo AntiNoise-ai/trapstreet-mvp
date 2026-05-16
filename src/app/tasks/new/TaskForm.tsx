@@ -94,11 +94,24 @@ export default function TaskForm({
         headers: { "content-type": "application/json" },
         body: JSON.stringify(form),
       });
-      const data = await res.json();
+      // Don't blow up on empty / non-JSON bodies — some failure modes
+      // (Vercel 500 page, edge-runtime crash) return HTML or nothing.
+      const text = await res.text();
+      let data: { error?: string; task?: { id: string } } | null = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        // leave data null; we'll fall through to text-based error below
+      }
       if (!res.ok) {
-        setError(data?.error ?? "task creation failed");
-      } else {
+        setError(
+          data?.error ??
+            (text ? text.slice(0, 200) : `HTTP ${res.status}`),
+        );
+      } else if (data?.task) {
         router.push(`/tasks/${data.task.id}`);
+      } else {
+        setError("server returned empty response");
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
