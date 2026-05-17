@@ -42,7 +42,7 @@ class TaskRunner:
                 metrics = JudgeRunner(self, case.id).run()
                 result = result.model_copy(update={"metrics": metrics})
             yield result
-            if fail_fast and result.metrics is not None and result.metrics.get("score", 1.0) < 1.0:
+            if fail_fast and result.exit_code != 0:
                 break
 
     def run(
