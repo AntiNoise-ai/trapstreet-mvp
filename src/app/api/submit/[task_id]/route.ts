@@ -5,6 +5,7 @@ import {
   type CliUpload,
 } from "@/lib/queries";
 import { ERR, ok } from "@/lib/api";
+import { verifyPublicRepo } from "@/lib/verify-repo";
 
 // POST /api/submit/:task_id — combined endpoint. Opens a run and ingests
 // the CLI's report.json in one HTTP call so runners can copy-paste a
@@ -38,6 +39,29 @@ export async function POST(
 
   const validation = validate(body);
   if (validation.error) return ERR.invalid(validation.error);
+
+  // Public-task rule: solution's metadata.repo must be a publicly
+  // reachable URL. Private tasks have no such requirement — owners can
+  // experiment without exposing their solver.
+  if (task.visibility === "public") {
+    const metadata = (body as { metadata?: Record<string, unknown> }).metadata;
+    const repo = typeof metadata?.repo === "string" ? metadata.repo : null;
+    if (!repo) {
+      return ERR.invalid(
+        "this task is public — your solution's metadata.repo is missing. " +
+          "Push your solver to a public git repo (or set `repo:` under " +
+          "`metadata:` in trap.yaml), then re-submit. tp run auto-detects " +
+          "the URL from `git remote -v` when the solution dir is a git repo.",
+      );
+    }
+    const check = await verifyPublicRepo(repo);
+    if (!check.ok) {
+      return ERR.invalid(
+        `this task is public — your solution's repo must be publicly accessible. ${check.reason}. ` +
+          "Push your code to a public GitHub repo, then re-submit.",
+      );
+    }
+  }
 
   const run = await submitRun({
     task_id,
