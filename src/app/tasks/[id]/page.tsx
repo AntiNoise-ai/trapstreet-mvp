@@ -1,24 +1,41 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getTask, leaderboardEntries, type LeaderboardRow } from "@/lib/queries";
-import type { RankingMetric } from "@/db/schema";
+import {
+  getTask,
+  leaderboardEntries,
+  type LeaderboardRow,
+  type SortKey,
+} from "@/lib/queries";
+import type { RankingDirection } from "@/db/schema";
 import { fmtCost, fmtLatency, fmtRelativeTime, fmtScore } from "@/lib/format";
 
 // Leaderboard tab. Header + tabs come from layout.tsx. The "Try it" and
 // "Submit your own" how-to-run blocks moved to /docs.
 export default async function TaskLeaderboardPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ sort?: string; dir?: string }>;
 }) {
   const { id } = await params;
+  const sp = await searchParams;
   const task = await getTask(id);
   if (!task) notFound();
 
+  // Resolve effective sort: URL params override, otherwise fall back to
+  // the task's official ranking_metric / direction.
+  const sort = parseSort(sp.sort) ?? task.ranking_metric;
+  const direction =
+    parseDir(sp.dir) ??
+    (sp.sort ? defaultDir(sort) : task.ranking_direction);
+  const isDefaultSort =
+    sort === task.ranking_metric && direction === task.ranking_direction;
+
   const entries = await leaderboardEntries({
     task_id: task.id,
-    ranking_metric: task.ranking_metric,
-    ranking_direction: task.ranking_direction,
+    sort,
+    direction,
   });
 
   return (
@@ -27,14 +44,20 @@ export default async function TaskLeaderboardPage({
         {entries.length === 0 ? (
           <p className="text-[var(--muted)]">No scored runs yet.</p>
         ) : (
-          <Leaderboard entries={entries} metric={task.ranking_metric} />
+          <Leaderboard
+            entries={entries}
+            taskId={task.id}
+            sort={sort}
+            direction={direction}
+            isDefaultSort={isDefaultSort}
+          />
         )}
       </section>
 
       <p className="mb-2 text-xs text-[var(--muted)]">
         {task.ranking_metric === "no_ranking"
           ? "Classification task — submissions shown newest first, not ranked."
-          : "Each row is a runner's best run on this task. Click a runner to see their full submission history."}
+          : "Each row is a runner's best run on this task. Click a column header to re-sort. Click a runner to see their full submission history."}
       </p>
 
       <p className="text-xs text-[var(--muted)]">
@@ -60,12 +83,63 @@ function traptaskHref(ref: string): string {
   return `https://github.com/${owner}/${repo}/tree/main/${rest.join("/")}`;
 }
 
+const SORT_KEYS = new Set<SortKey>([
+  "total_score",
+  "latency_ms",
+  "cost_usd",
+  "cases_passed",
+  "scored_at",
+  "passed",
+  "no_ranking",
+]);
+
+function parseSort(s: string | undefined): SortKey | null {
+  if (!s) return null;
+  return SORT_KEYS.has(s as SortKey) ? (s as SortKey) : null;
+}
+
+function parseDir(s: string | undefined): RankingDirection | null {
+  return s === "asc" || s === "desc" ? s : null;
+}
+
+// Sensible default direction per column when a user first clicks it.
+// "higher is better" columns default to desc, "lower is better" to asc.
+function defaultDir(sort: SortKey): RankingDirection {
+  switch (sort) {
+    case "latency_ms":
+    case "cost_usd":
+      return "asc";
+    default:
+      return "desc";
+  }
+}
+
+interface SortableColumn {
+  label: string;
+  key: SortKey;
+}
+
+const COLUMNS: SortableColumn[] = [
+  { label: "score", key: "total_score" },
+  { label: "pass", key: "passed" },
+  { label: "cases", key: "cases_passed" },
+  { label: "latency", key: "latency_ms" },
+  { label: "cost", key: "cost_usd" },
+  { label: "submitted", key: "scored_at" },
+];
+
 function Leaderboard({
   entries,
-  metric,
+  taskId,
+  sort,
+  direction,
+  isDefaultSort,
 }: {
   entries: LeaderboardRow[];
-  metric: RankingMetric;
+  taskId: string;
+  sort: SortKey;
+  direction: RankingDirection;
+  isDefaultSort: boolean;
 }) {
   return (
     <table>
@@ -73,18 +147,16 @@ function Leaderboard({
         <tr>
           <th>#</th>
           <th>solution</th>
-          <th className={metric === "total_score" ? "text-[var(--accent)]" : ""}>
-            score
-          </th>
-          <th>pass</th>
-          <th>cases</th>
-          <th className={metric === "latency_ms" ? "text-[var(--accent)]" : ""}>
-            latency
-          </th>
-          <th className={metric === "cost_usd" ? "text-[var(--accent)]" : ""}>
-            cost
-          </th>
-          <th>submitted</th>
+          {COLUMNS.map((col) => (
+            <SortHeader
+              key={col.key}
+              col={col}
+              activeSort={sort}
+              activeDir={direction}
+              taskId={taskId}
+              isDefaultSort={isDefaultSort}
+            />
+          ))}
         </tr>
       </thead>
       <tbody>
@@ -93,19 +165,13 @@ function Leaderboard({
             <td className="text-[var(--muted)]">{e.rank}</td>
             <td className="font-medium">
               {/* Solution (runner.name) is the primary id; the human's
-                  display name appears as a secondary line below. */}
+                  display name and the source-repo link sit below. */}
               <Link href={`/runners/${e.runner_id}`}>{e.runner_name}</Link>
-              {e.user_name && (
-                <div className="text-[11px] font-normal text-[var(--muted)]">
-                  by {e.user_name}
-                </div>
-              )}
+              <SolutionSubline e={e} />
             </td>
             <td
               className={
-                metric === "total_score"
-                  ? "font-medium text-[var(--accent)]"
-                  : ""
+                sort === "total_score" ? "font-medium text-[var(--accent)]" : ""
               }
             >
               {fmtScore(e.total_score)}
@@ -127,14 +193,14 @@ function Leaderboard({
             </td>
             <td
               className={
-                metric === "latency_ms" ? "font-medium text-[var(--accent)]" : ""
+                sort === "latency_ms" ? "font-medium text-[var(--accent)]" : ""
               }
             >
               {fmtLatency(e.latency_ms)}
             </td>
             <td
               className={
-                metric === "cost_usd" ? "font-medium text-[var(--accent)]" : ""
+                sort === "cost_usd" ? "font-medium text-[var(--accent)]" : ""
               }
             >
               {fmtCost(e.cost_usd)}
@@ -147,4 +213,101 @@ function Leaderboard({
       </tbody>
     </table>
   );
+}
+
+function SortHeader({
+  col,
+  activeSort,
+  activeDir,
+  taskId,
+  isDefaultSort,
+}: {
+  col: SortableColumn;
+  activeSort: SortKey;
+  activeDir: RankingDirection;
+  taskId: string;
+  isDefaultSort: boolean;
+}) {
+  const active = col.key === activeSort;
+  // When clicking the active column, flip direction. When clicking a
+  // new column, use that column's natural default direction.
+  const nextDir: RankingDirection = active
+    ? activeDir === "desc"
+      ? "asc"
+      : "desc"
+    : defaultDir(col.key);
+  // Clicking the active column while already in its default state =
+  // clear the override so we go back to the task's official ranking.
+  const goingBackToDefault =
+    active && isDefaultSort && nextDir === defaultDir(col.key);
+  const href = goingBackToDefault
+    ? `/tasks/${taskId}`
+    : `/tasks/${taskId}?sort=${col.key}&dir=${nextDir}`;
+
+  const arrow = active ? (activeDir === "desc" ? " ↓" : " ↑") : "";
+  return (
+    <th>
+      <Link
+        href={href}
+        className={
+          "hover:no-underline " +
+          (active
+            ? "text-[var(--accent)]"
+            : "text-[var(--muted)] hover:text-[var(--foreground)]")
+        }
+      >
+        {col.label}
+        {arrow}
+      </Link>
+    </th>
+  );
+}
+
+function SolutionSubline({ e }: { e: LeaderboardRow }) {
+  const repo = extractRepo(e.metadata);
+  if (!e.user_name && !repo) return null;
+  return (
+    <div className="text-[11px] font-normal text-[var(--muted)]">
+      {e.user_name && <>by {e.user_name}</>}
+      {e.user_name && repo && <span className="px-1">·</span>}
+      {repo && (
+        <a
+          href={repo.url}
+          target="_blank"
+          rel="noreferrer"
+          className="text-[var(--accent)] underline-offset-2 hover:underline"
+        >
+          {repo.label} ↗
+        </a>
+      )}
+    </div>
+  );
+}
+
+// Pull a github repo URL out of self-reported run metadata. Accepts the
+// common shapes: full URL, owner/repo, github.com/owner/repo. Returns a
+// display label + canonical https URL.
+function extractRepo(
+  metadata: Record<string, unknown> | null,
+): { url: string; label: string } | null {
+  if (!metadata) return null;
+  const raw = metadata.repo ?? metadata.source ?? metadata.repo_url;
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  const trimmed = raw.trim();
+
+  // Full URL — use as-is, label = last path segment.
+  if (/^https?:\/\//i.test(trimmed)) {
+    const parts = trimmed.replace(/^https?:\/\//i, "").split("/").filter(Boolean);
+    const label = parts.slice(1, 3).join("/") || "source";
+    return { url: trimmed, label };
+  }
+  // github.com/owner/repo or owner/repo
+  const stripped = trimmed.replace(/^github\.com\//i, "");
+  const parts = stripped.split("/").filter(Boolean);
+  if (parts.length < 2) return null;
+  const ownerRepo = parts.slice(0, 2).join("/");
+  return {
+    url: `https://github.com/${ownerRepo}`,
+    label: ownerRepo,
+  };
 }

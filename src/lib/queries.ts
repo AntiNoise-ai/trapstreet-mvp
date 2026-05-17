@@ -516,11 +516,19 @@ export type LeaderboardRow = {
   cost_usd: number | null;
   latency_ms: number | null;
   scored_at: string;
+  // Self-reported metadata from trap.yaml. The UI looks for `repo`
+  // (GitHub URL) to render a source-code link next to the solution.
+  metadata: Record<string, unknown> | null;
 };
 
-// Resolve a RankingMetric to the Drizzle column it maps to. Not called
-// for "no_ranking" — that case is handled before this function runs.
-function metricColumn(m: Exclude<RankingMetric, "no_ranking">): PgColumn {
+// What the leaderboard can sort by. Superset of RankingMetric — we also
+// allow sorting by columns that aren't valid "official" ranking metrics
+// for a task (e.g. submission time, pass/fail boolean).
+export type SortKey = RankingMetric | "scored_at" | "passed";
+
+// Resolve a SortKey to the Drizzle column it maps to. Not called for
+// "no_ranking" — that case is handled before this function runs.
+function sortColumn(m: Exclude<SortKey, "no_ranking">): PgColumn {
   switch (m) {
     case "total_score":
       return runs.total_score;
@@ -530,17 +538,21 @@ function metricColumn(m: Exclude<RankingMetric, "no_ranking">): PgColumn {
       return runs.cost_usd;
     case "cases_passed":
       return runs.cases_passed;
+    case "scored_at":
+      return runs.scored_at;
+    case "passed":
+      return runs.passed;
   }
 }
 
 export async function leaderboardEntries(filter: {
   track?: string;
   task_id?: string;
-  // When ranking_metric is passed (e.g. from a task page), use it.
-  // Defaults to total_score DESC + (latency, cost) tiebreakers — the
-  // sensible all-up cross-task default for the home grid summary.
-  ranking_metric?: RankingMetric;
-  ranking_direction?: RankingDirection;
+  // What to sort by. Supports any SortKey (RankingMetric ∪ scored_at,
+  // passed). Callers (task page, API) typically resolve this from
+  // URL params with the task's ranking_metric as fallback default.
+  sort?: SortKey;
+  direction?: RankingDirection;
   // false (default) → dedup to each runner's best run per task. true →
   // raw list of every scored run (used by the "all runs" view, runner
   // history, etc.)
@@ -550,31 +562,31 @@ export async function leaderboardEntries(filter: {
   if (filter.task_id) where.push(eq(runs.task_id, filter.task_id));
   if (filter.track) where.push(eq(tasks.track, filter.track));
 
-  const metric = filter.ranking_metric ?? "total_score";
-  const direction = filter.ranking_direction ?? "desc";
+  const sort = filter.sort ?? "total_score";
+  const direction = filter.direction ?? "desc";
 
   // For classification / self-profile tasks ("no_ranking"), there is no
   // meaningful score column to rank by — show submissions chronologically.
   let primary: SQL;
   let tiebreakers: SQL[];
-  if (metric === "no_ranking") {
+  if (sort === "no_ranking") {
     primary = desc(runs.scored_at);
     tiebreakers = [];
   } else {
     primary =
       direction === "desc"
-        ? desc(metricColumn(metric))
-        : asc(metricColumn(metric));
+        ? desc(sortColumn(sort))
+        : asc(sortColumn(sort));
     // Tiebreakers — always include the other relevant columns so order
     // is stable. We pick the inverse-direction of the primary metric so
     // a score-ranked board breaks ties by speed/cost (lower better),
     // and a latency-ranked board breaks ties by higher score.
     tiebreakers =
-      metric === "total_score"
+      sort === "total_score"
         ? [asc(runs.latency_ms), asc(runs.cost_usd)]
-        : metric === "latency_ms"
+        : sort === "latency_ms"
           ? [desc(runs.total_score), asc(runs.cost_usd)]
-          : metric === "cost_usd"
+          : sort === "cost_usd"
             ? [desc(runs.total_score), asc(runs.latency_ms)]
             : [desc(runs.total_score), asc(runs.latency_ms)];
   }
@@ -595,6 +607,7 @@ export async function leaderboardEntries(filter: {
       cost_usd: runs.cost_usd,
       latency_ms: runs.latency_ms,
       scored_at: runs.scored_at,
+      metadata: runs.metadata,
     })
     .from(runs)
     .innerJoin(tasks, eq(tasks.id, runs.task_id))
@@ -613,7 +626,7 @@ export async function leaderboardEntries(filter: {
   // Skip dedup for classification tasks — each submission has
   // independent value, and "best" isn't defined when nothing is ranked.
   const finalRows =
-    filter.all || metric === "no_ranking"
+    filter.all || sort === "no_ranking"
       ? rows
       : (() => {
           const seen = new Set<string>();
@@ -643,6 +656,10 @@ export async function leaderboardEntries(filter: {
     cost_usd: r.cost_usd,
     latency_ms: r.latency_ms,
     scored_at: r.scored_at!.toISOString(),
+    metadata:
+      r.metadata && typeof r.metadata === "object"
+        ? (r.metadata as Record<string, unknown>)
+        : null,
   }));
 }
 

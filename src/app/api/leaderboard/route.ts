@@ -1,46 +1,49 @@
 import { NextRequest } from "next/server";
-import { getTask, leaderboardEntries } from "@/lib/queries";
+import { getTask, leaderboardEntries, type SortKey } from "@/lib/queries";
 import { ok } from "@/lib/api";
-import type { RankingDirection, RankingMetric } from "@/db/schema";
+import type { RankingDirection } from "@/db/schema";
 
-const ALLOWED_METRICS: RankingMetric[] = [
+const ALLOWED_SORTS: SortKey[] = [
   "total_score",
   "latency_ms",
   "cost_usd",
   "cases_passed",
+  "scored_at",
+  "passed",
+  "no_ranking",
 ];
 
 export async function GET(req: NextRequest) {
   const track = req.nextUrl.searchParams.get("track") ?? undefined;
   const task_id = req.nextUrl.searchParams.get("task_id") ?? undefined;
 
-  // If filtering to a task, default to that task's ranking_metric.
-  // Caller can still override via ?ranking_metric=... if they want.
-  let ranking_metric: RankingMetric | undefined;
-  let ranking_direction: RankingDirection | undefined;
+  // ?sort=&dir= are the canonical names. We still accept the older
+  // ?ranking_metric=&ranking_direction= for backward compat.
+  const sortParam =
+    req.nextUrl.searchParams.get("sort") ??
+    req.nextUrl.searchParams.get("ranking_metric");
+  const dirParam =
+    req.nextUrl.searchParams.get("dir") ??
+    req.nextUrl.searchParams.get("ranking_direction");
 
-  const metricParam = req.nextUrl.searchParams.get("ranking_metric");
-  const directionParam = req.nextUrl.searchParams.get("ranking_direction");
-  if (metricParam && ALLOWED_METRICS.includes(metricParam as RankingMetric)) {
-    ranking_metric = metricParam as RankingMetric;
+  let sort: SortKey | undefined;
+  let direction: RankingDirection | undefined;
+  if (sortParam && ALLOWED_SORTS.includes(sortParam as SortKey)) {
+    sort = sortParam as SortKey;
   }
-  if (directionParam === "asc" || directionParam === "desc") {
-    ranking_direction = directionParam;
+  if (dirParam === "asc" || dirParam === "desc") {
+    direction = dirParam;
   }
 
-  if (task_id && !ranking_metric) {
+  // If filtering to a single task, default to that task's official ranking.
+  if (task_id && !sort) {
     const task = await getTask(task_id);
     if (task) {
-      ranking_metric = task.ranking_metric;
-      ranking_direction = task.ranking_direction;
+      sort = task.ranking_metric;
+      direction = task.ranking_direction;
     }
   }
 
-  const entries = await leaderboardEntries({
-    track,
-    task_id,
-    ranking_metric,
-    ranking_direction,
-  });
-  return ok({ entries, ranking_metric, ranking_direction });
+  const entries = await leaderboardEntries({ track, task_id, sort, direction });
+  return ok({ entries, sort, direction });
 }
