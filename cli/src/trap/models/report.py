@@ -4,7 +4,7 @@
 # Reference: trapstreet/docs/scoring-and-metrics.md "Upload protocol".
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from statistics import median
 from typing import Any
 
@@ -74,7 +74,7 @@ class ReportData(BaseModel):
 
 def _iso(dt: datetime) -> str:
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt.isoformat(timespec="seconds")
 
 
@@ -104,7 +104,7 @@ def _auto_summary_dict(cases: tuple[CaseResult, ...]) -> dict[str, Any]:
         if isinstance(s, (int, float)):
             scores.append(float(s))
         if c.duration is not None:
-            durations_ms.append(int(round(c.duration * 1000)))
+            durations_ms.append(round(c.duration * 1000))
         cost = m.get("usd_cost")
         if isinstance(cost, (int, float)):
             costs.append(float(cost))

@@ -139,9 +139,7 @@ def login(
         envvar="TRAPSTREET_URL",
         help="Trapstreet server URL.",
     ),
-    timeout: int = typer.Option(
-        300, "--timeout", help="Seconds to wait for browser approval."
-    ),
+    timeout: int = typer.Option(300, "--timeout", help="Seconds to wait for browser approval."),
 ) -> None:
     """Open the browser to authorize this machine; save api_key locally.
 
@@ -162,10 +160,10 @@ def login(
 
     class _CallbackHandler(http.server.BaseHTTPRequestHandler):
         # Silence default access log
-        def log_message(self, *_args: Any) -> None:  # noqa: ARG002
+        def log_message(self, format: str, *args: Any) -> None:
             return
 
-        def do_GET(self) -> None:  # noqa: N802
+        def do_GET(self) -> None:
             qs = urllib.parse.urlparse(self.path).query
             params = urllib.parse.parse_qs(qs)
             api_key = (params.get("api_key") or [None])[0]
@@ -198,19 +196,15 @@ def login(
     thread.start()
 
     return_url = f"http://localhost:{port}/callback"
-    auth_url = (
-        f"{server.rstrip('/')}/cli/authorize"
-        f"?return={urllib.parse.quote(return_url, safe='')}"
-    )
+    auth_url = f"{server.rstrip('/')}/cli/authorize?return={urllib.parse.quote(return_url, safe='')}"
 
     console.print(f"opening [link={auth_url}]{auth_url}[/link]")
     try:
         webbrowser.open(auth_url)
-    except Exception:  # noqa: BLE001
+    except Exception:
         # Couldn't open; user can copy/paste
         console.print(
-            "[yellow]could not open browser automatically — "
-            "copy the URL above into a browser[/yellow]"
+            "[yellow]could not open browser automatically — copy the URL above into a browser[/yellow]"
         )
 
     deadline = time.time() + timeout
@@ -221,17 +215,11 @@ def login(
     server_obj.server_close()
 
     if "api_key" not in captured:
-        console.print(
-            f"[red]timed out after {timeout}s[/red] waiting for browser approval"
-        )
+        console.print(f"[red]timed out after {timeout}s[/red] waiting for browser approval")
         raise SystemExit(2)
 
     path = _save_auth_file(server, captured["api_key"], captured.get("runner"))
-    runner_hint = (
-        f" · runner [bold]{captured.get('runner')}[/bold]"
-        if captured.get("runner")
-        else ""
-    )
+    runner_hint = f" · runner [bold]{captured.get('runner')}[/bold]" if captured.get("runner") else ""
     console.print(f"[green]✓ logged in[/green]{runner_hint} · token saved to {path}")
 
 
@@ -254,9 +242,7 @@ def submit(
     ),
     trap_yaml_path: Path = typer.Option(Path("trap.yaml"), "--config", "-c"),
     workspace: Path = typer.Option(Path(".trap"), "--workspace", "-w"),
-    run: str = typer.Option(
-        "latest", "--run", "-r", help="Which run to upload (default: latest)."
-    ),
+    run: str = typer.Option("latest", "--run", "-r", help="Which run to upload (default: latest)."),
     server: str = typer.Option(
         DEFAULT_SERVER,
         "--server",
@@ -286,10 +272,7 @@ def submit(
 
     report_path = workspace.resolve() / task_name / run / "report.json"
     if not report_path.exists():
-        console.print(
-            f"[red]error[/red]: no report at {report_path}. "
-            "Run [bold]tp run[/bold] first."
-        )
+        console.print(f"[red]error[/red]: no report at {report_path}. Run [bold]tp run[/bold] first.")
         raise SystemExit(2)
 
     payload = report_path.read_bytes()
@@ -310,10 +293,10 @@ def submit(
     except urllib.error.HTTPError as e:
         msg = e.read().decode("utf-8", errors="replace")
         console.print(f"[red]http {e.code}[/red]: {msg}")
-        raise SystemExit(2)
+        raise SystemExit(2) from None
     except urllib.error.URLError as e:
         console.print(f"[red]connection error[/red]: {e.reason}")
-        raise SystemExit(2)
+        raise SystemExit(2) from None
 
     run_obj = body.get("run") or {}
     run_id = run_obj.get("id", "?")
