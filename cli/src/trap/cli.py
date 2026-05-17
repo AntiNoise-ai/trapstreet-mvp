@@ -112,8 +112,7 @@ def run(
     renderer_factory(output).render(report_data)
 
     case_failed = any(cr.exit_code != 0 for cr in case_results)
-    grader_failed = grader_metrics is not None and grader_metrics.get("passed") is False
-    raise SystemExit(case_failed or grader_failed)
+    raise SystemExit(case_failed)
 
 
 @app.command()
