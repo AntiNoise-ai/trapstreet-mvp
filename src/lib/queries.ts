@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { and, asc, desc, eq, or, sql as raw } from "drizzle-orm";
+import { and, asc, desc, eq, or, sql as raw, type SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/db/client";
 import {
@@ -498,7 +498,13 @@ export async function ingestCliUpload(
 export type LeaderboardRow = {
   rank: number;
   runner_id: string;
+  // The submission identity (what we call "solution" in the UI). Set by
+  // the user via `tp login` / runner registration — defaults to an
+  // auto-generated handle.
   runner_name: string;
+  // GitHub/Google display name of the human who owns the runner. Shown
+  // as a small "by Xxx" line under the solution name on the leaderboard.
+  user_name: string | null;
   run_id: string;
   task_id: string;
   track: string;
@@ -512,8 +518,9 @@ export type LeaderboardRow = {
   scored_at: string;
 };
 
-// Resolve a RankingMetric to the Drizzle column it maps to.
-function metricColumn(m: RankingMetric): PgColumn {
+// Resolve a RankingMetric to the Drizzle column it maps to. Not called
+// for "no_ranking" — that case is handled before this function runs.
+function metricColumn(m: Exclude<RankingMetric, "no_ranking">): PgColumn {
   switch (m) {
     case "total_score":
       return runs.total_score;
@@ -545,24 +552,32 @@ export async function leaderboardEntries(filter: {
 
   const metric = filter.ranking_metric ?? "total_score";
   const direction = filter.ranking_direction ?? "desc";
-  const primary =
-    direction === "desc"
-      ? desc(metricColumn(metric))
-      : asc(metricColumn(metric));
 
-  // Tiebreakers — always include the other relevant columns so order is
-  // stable. We pick the inverse-direction of the primary metric so a
-  // score-ranked board breaks ties by speed/cost (lower better), and a
-  // latency-ranked board breaks ties by higher score.
-  const tiebreakers = (
-    metric === "total_score"
-      ? [asc(runs.latency_ms), asc(runs.cost_usd)]
-      : metric === "latency_ms"
-        ? [desc(runs.total_score), asc(runs.cost_usd)]
-        : metric === "cost_usd"
-          ? [desc(runs.total_score), asc(runs.latency_ms)]
-          : [desc(runs.total_score), asc(runs.latency_ms)]
-  );
+  // For classification / self-profile tasks ("no_ranking"), there is no
+  // meaningful score column to rank by — show submissions chronologically.
+  let primary: SQL;
+  let tiebreakers: SQL[];
+  if (metric === "no_ranking") {
+    primary = desc(runs.scored_at);
+    tiebreakers = [];
+  } else {
+    primary =
+      direction === "desc"
+        ? desc(metricColumn(metric))
+        : asc(metricColumn(metric));
+    // Tiebreakers — always include the other relevant columns so order
+    // is stable. We pick the inverse-direction of the primary metric so
+    // a score-ranked board breaks ties by speed/cost (lower better),
+    // and a latency-ranked board breaks ties by higher score.
+    tiebreakers =
+      metric === "total_score"
+        ? [asc(runs.latency_ms), asc(runs.cost_usd)]
+        : metric === "latency_ms"
+          ? [desc(runs.total_score), asc(runs.cost_usd)]
+          : metric === "cost_usd"
+            ? [desc(runs.total_score), asc(runs.latency_ms)]
+            : [desc(runs.total_score), asc(runs.latency_ms)];
+  }
 
   const rows = await db
     .select({
@@ -571,6 +586,7 @@ export async function leaderboardEntries(filter: {
       task_id: runs.task_id,
       track: tasks.track,
       runner_name: runners.name,
+      user_name: users.name,
       passed: runs.passed,
       total_score: runs.total_score,
       cases_passed: runs.cases_passed,
@@ -583,6 +599,9 @@ export async function leaderboardEntries(filter: {
     .from(runs)
     .innerJoin(tasks, eq(tasks.id, runs.task_id))
     .innerJoin(runners, eq(runners.id, runs.runner_id))
+    // Left-join users so runners without an owning user (anonymous
+    // registration) still appear; user_name will just be null.
+    .leftJoin(users, eq(users.id, runners.user_id))
     .where(and(...where))
     .orderBy(primary, ...tiebreakers);
 
@@ -590,24 +609,29 @@ export async function leaderboardEntries(filter: {
   // the ranking criteria, so the first row we see for a given key wins.
   // Postgres has DISTINCT ON for this server-side, but Drizzle doesn't
   // expose it cleanly; in-memory works fine at v0 scale.
-  const finalRows = filter.all
-    ? rows
-    : (() => {
-        const seen = new Set<string>();
-        const out: typeof rows = [];
-        for (const r of rows) {
-          const key = `${r.runner_name}|${r.task_id}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          out.push(r);
-        }
-        return out;
-      })();
+  //
+  // Skip dedup for classification tasks — each submission has
+  // independent value, and "best" isn't defined when nothing is ranked.
+  const finalRows =
+    filter.all || metric === "no_ranking"
+      ? rows
+      : (() => {
+          const seen = new Set<string>();
+          const out: typeof rows = [];
+          for (const r of rows) {
+            const key = `${r.runner_name}|${r.task_id}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            out.push(r);
+          }
+          return out;
+        })();
 
   return finalRows.map((r, i) => ({
     rank: i + 1,
     runner_id: r.runner_id,
     runner_name: r.runner_name,
+    user_name: r.user_name,
     run_id: r.run_id,
     task_id: r.task_id,
     track: r.track,

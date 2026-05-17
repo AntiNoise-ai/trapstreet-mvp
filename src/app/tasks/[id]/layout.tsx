@@ -32,7 +32,9 @@ export default async function TaskLayout({
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-2xl font-semibold">{task.name}</h1>
         <span className="rounded border border-[var(--accent)] px-2 py-0.5 text-[11px] text-[var(--accent)]">
-          ranked by {ranking.label}
+          {task.ranking_metric === "no_ranking"
+            ? ranking.label
+            : `ranked by ${ranking.label}`}
         </span>
       </div>
       <p className="mb-1 font-mono text-xs text-[var(--muted)]">{task.id}</p>
@@ -51,6 +53,9 @@ function describeRanking(
   metric: RankingMetric,
   direction: RankingDirection,
 ): { label: string } {
+  if (metric === "no_ranking") {
+    return { label: "classification — no ranking" };
+  }
   const arrow = direction === "desc" ? "↓" : "↑";
   switch (metric) {
     case "total_score":

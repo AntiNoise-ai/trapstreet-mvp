@@ -88,6 +88,13 @@ def _coerce_or_auto_summary(grader_metrics: Any, cases: tuple[CaseResult, ...]) 
         auto = _auto_summary_dict(cases)
         for k, v in auto.items():
             filled.setdefault(k, v)
+        # Graders commonly emit latency as rounded floats (e.g. 83.8 ms).
+        # Summary contracts these fields as ints — coerce here so we don't
+        # crash on otherwise-valid grader output.
+        for key in ("latency_ms_total", "latency_ms_median", "latency_ms_p95"):
+            v = filled.get(key)
+            if isinstance(v, float):
+                filled[key] = int(round(v))
         return Summary.model_validate(filled)
     return Summary.model_validate(_auto_summary_dict(cases))
 

@@ -9,6 +9,7 @@ const METRICS = [
   { value: "latency_ms", label: "latency_ms (lower better)" },
   { value: "cost_usd", label: "cost_usd (lower better)" },
   { value: "cases_passed", label: "cases_passed (higher better)" },
+  { value: "no_ranking", label: "no ranking — classification / self-profile" },
 ] as const;
 
 export default function TaskForm({

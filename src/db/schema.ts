@@ -65,7 +65,11 @@ export type RankingMetric =
   | "total_score"
   | "latency_ms"
   | "cost_usd"
-  | "cases_passed";
+  | "cases_passed"
+  // Classification / self-profile tasks where ranking doesn't apply
+  // (e.g. MBTI). Leaderboard renders submissions chronologically and
+  // omits rank semantics.
+  | "no_ranking";
 
 export type RankingDirection = "asc" | "desc";
 

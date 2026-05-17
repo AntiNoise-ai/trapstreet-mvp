@@ -9,6 +9,7 @@ const ALLOWED_METRICS: RankingMetric[] = [
   "latency_ms",
   "cost_usd",
   "cases_passed",
+  "no_ranking",
 ];
 
 export async function GET(req: NextRequest) {

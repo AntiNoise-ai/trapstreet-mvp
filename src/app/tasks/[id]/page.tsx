@@ -32,8 +32,9 @@ export default async function TaskLeaderboardPage({
       </section>
 
       <p className="mb-2 text-xs text-[var(--muted)]">
-        Each row is a runner&apos;s best run on this task. Click a runner to
-        see their full submission history.
+        {task.ranking_metric === "no_ranking"
+          ? "Classification task — submissions shown newest first, not ranked."
+          : "Each row is a runner's best run on this task. Click a runner to see their full submission history."}
       </p>
 
       <p className="text-xs text-[var(--muted)]">
@@ -71,7 +72,7 @@ function Leaderboard({
       <thead>
         <tr>
           <th>#</th>
-          <th>runner</th>
+          <th>solution</th>
           <th className={metric === "total_score" ? "text-[var(--accent)]" : ""}>
             score
           </th>
@@ -91,8 +92,14 @@ function Leaderboard({
           <tr key={e.run_id}>
             <td className="text-[var(--muted)]">{e.rank}</td>
             <td className="font-medium">
-              {/* Runner name → runner detail (history). Run id badge → run detail. */}
+              {/* Solution (runner.name) is the primary id; the human's
+                  display name appears as a secondary line below. */}
               <Link href={`/runners/${e.runner_id}`}>{e.runner_name}</Link>
+              {e.user_name && (
+                <div className="text-[11px] font-normal text-[var(--muted)]">
+                  by {e.user_name}
+                </div>
+              )}
             </td>
             <td
               className={

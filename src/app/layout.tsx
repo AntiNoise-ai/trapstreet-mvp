@@ -48,11 +48,21 @@ export default function RootLayout({
             </nav>
           </header>
           <main>{children}</main>
-          <footer className="mt-16 border-t border-[var(--border)] pt-4 text-xs text-[var(--muted)]">
+          <footer className="mt-16 flex flex-wrap items-baseline justify-between gap-2 border-t border-[var(--border)] pt-4 text-xs text-[var(--muted)]">
             <p>
               <span className="text-[var(--foreground)]">trapstreet.run</span> ·{" "}
               public benchmark for AI workflows · v0 contract is in{" "}
               <code className="text-[var(--foreground)]">docs/api-v0.md</code>
+            </p>
+            <p>
+              <a
+                href="https://discord.gg/Ymm57FzYmF"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[var(--accent)] underline-offset-2 hover:underline"
+              >
+                join the discord →
+              </a>
             </p>
           </footer>
         </div>
