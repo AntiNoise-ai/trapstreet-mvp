@@ -2,7 +2,7 @@
 // grows past a single page, split into multiple route files.
 
 export const BUILD_A_TASK_MD = `
-We're going to build a task called \`sum-two-numbers\`. Runners get
+We're going to build a task called \`sum-two-numbers\`. Solutions get
 two ints in a JSON file. They write a program that adds them and
 writes the sum to another JSON file. We score whether their answer
 matches ours. Whole thing takes about 15 minutes.
@@ -11,13 +11,13 @@ matches ours. Whole thing takes about 15 minutes.
 
 A task is a folder. Four things live in it:
 
-- **\`inputs/<case>/\`** — what we hand the runner's program
+- **\`inputs/<case>/\`** — what we hand the solution's program
 - **\`expected/<case>/\`** — what we expected back
 - **\`judge.py\`** — scores one case
 - **\`grader.py\`** — aggregates case scores into a run-level pass/fail
 
 Plus a \`traptask.yaml\` that wires them together. That's the whole
-contract — the runner's solution and your task talk through files
+contract — the solution's solution and your task talk through files
 and environment variables only.
 
 ## Step 1 — make the case files
@@ -71,7 +71,7 @@ print(json.dumps({
 \`\`\`
 
 That's it. \`TRAPTASK_PAYLOAD\` is a JSON string giving you absolute
-paths into the runner's output dir and your expected dir for this
+paths into the solution's output dir and your expected dir for this
 case. You read what's there, decide, print one line.
 
 ## Step 3 — write the grader (or skip it)
@@ -143,7 +143,7 @@ how that flows from the solver side.
 
 ## What you didn't have to think about
 
-- Test runner orchestration — \`tp\` runs each case in its own
+- Test solution orchestration — \`tp\` runs each case in its own
   subprocess, captures stdout, handles timeouts, you don't write any
   of that.
 - File paths — your judge / grader read \`TRAPTASK_PAYLOAD\` and never

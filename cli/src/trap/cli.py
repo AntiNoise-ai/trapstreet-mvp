@@ -44,11 +44,11 @@ def _load_auth_file() -> dict[str, str]:
         return {}
 
 
-def _save_auth_file(server: str, api_key: str, runner: str | None) -> Path:
+def _save_auth_file(server: str, api_key: str, solution: str | None) -> Path:
     AUTH_FILE.parent.mkdir(parents=True, exist_ok=True)
     payload = {"server": server, "api_key": api_key}
-    if runner:
-        payload["runner"] = runner
+    if solution:
+        payload["solution"] = solution
     AUTH_FILE.write_text(_json.dumps(payload, indent=2) + "\n")
     AUTH_FILE.chmod(0o600)
     return AUTH_FILE
@@ -174,12 +174,12 @@ def login(
             qs = urllib.parse.urlparse(self.path).query
             params = urllib.parse.parse_qs(qs)
             api_key = (params.get("api_key") or [None])[0]
-            runner_name = (params.get("runner") or [None])[0]
+            solution_name = (params.get("solution") or [None])[0]
 
             if api_key:
                 captured["api_key"] = api_key
-                if runner_name:
-                    captured["runner"] = runner_name
+                if solution_name:
+                    captured["solution"] = solution_name
                 self.send_response(200)
                 self.send_header("content-type", "text/html; charset=utf-8")
                 self.end_headers()
@@ -225,9 +225,9 @@ def login(
         console.print(f"[red]timed out after {timeout}s[/red] waiting for browser approval")
         raise SystemExit(2)
 
-    path = _save_auth_file(server, captured["api_key"], captured.get("runner"))
-    runner_hint = f" · runner [bold]{captured.get('runner')}[/bold]" if captured.get("runner") else ""
-    console.print(f"[green]✓ logged in[/green]{runner_hint} · token saved to {path}")
+    path = _save_auth_file(server, captured["api_key"], captured.get("solution"))
+    sol_hint = f" · solution [bold]{captured.get('solution')}[/bold]" if captured.get("solution") else ""
+    console.print(f"[green]✓ logged in[/green]{sol_hint} · token saved to {path}")
 
 
 @app.command()
@@ -260,7 +260,7 @@ def submit(
         None,
         "--api-key",
         envvar="TRAPSTREET_API_KEY",
-        help="Runner api_key. Falls back to TRAPSTREET_API_KEY env, "
+        help="Solution api_key. Falls back to TRAPSTREET_API_KEY env, "
         "then ~/.config/trapstreet/auth.json (see `tp login`).",
     ),
 ) -> None:

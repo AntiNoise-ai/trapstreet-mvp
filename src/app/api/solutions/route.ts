@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { createRunner, getRunnerByName } from "@/lib/queries";
+import { createSolution, getSolutionByName } from "@/lib/queries";
 import { ERR, ok } from "@/lib/api";
 
 export async function POST(req: Request) {
@@ -17,9 +17,9 @@ export async function POST(req: Request) {
     return ERR.invalid("name and endpoint_url are required");
   }
 
-  const existing = await getRunnerByName(name);
+  const existing = await getSolutionByName(name);
   if (existing) {
-    return ERR.conflict(`runner name "${name}" already exists`);
+    return ERR.conflict(`solution name "${name}" already exists`);
   }
 
   // Optionally link to logged-in user. Anonymous registration still works
@@ -27,10 +27,10 @@ export async function POST(req: Request) {
   const session = await auth();
   const userId = session?.user?.id ?? null;
 
-  const { runner, api_key } = await createRunner({
+  const { solution, api_key } = await createSolution({
     name,
     endpoint_url,
     user_id: userId,
   });
-  return ok({ runner, api_key });
+  return ok({ solution, api_key });
 }

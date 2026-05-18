@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   getRun,
-  getRunnerById,
+  getSolutionById,
   getTask,
   listCasesForRun,
 } from "@/lib/queries";
@@ -17,9 +17,9 @@ export default async function RunDetailPage({
   const run = await getRun(id);
   if (!run) notFound();
 
-  const [task, runner, cases] = await Promise.all([
+  const [task, solution, cases] = await Promise.all([
     getTask(run.task_id),
-    getRunnerById(run.runner_id),
+    getSolutionById(run.solution_id),
     listCasesForRun(run.id),
   ]);
 
@@ -29,7 +29,7 @@ export default async function RunDetailPage({
         run · <span className="font-mono">{run.id}</span>
       </p>
       <h1 className="mb-1 text-2xl font-semibold">
-        {runner?.name ?? run.runner_id}
+        {solution?.name ?? run.solution_id}
       </h1>
       <p className="mb-6 text-sm text-[var(--muted)]">
         on{" "}
@@ -102,7 +102,7 @@ export default async function RunDetailPage({
         <section className="mb-8">
           <h2 className="mb-3 text-lg font-semibold">Solution metadata</h2>
           <p className="mb-3 text-xs text-[var(--muted)]">
-            Self-reported by the runner. Not validated.
+            Self-reported by the solution. Not validated.
           </p>
           <div className="rounded border border-[var(--border)] p-4">
             <KeyValueGrid kv={run.metadata as Record<string, unknown>} />

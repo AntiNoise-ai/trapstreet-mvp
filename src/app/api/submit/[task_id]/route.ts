@@ -1,5 +1,5 @@
 import {
-  authRunner,
+  authSolution,
   getTask,
   submitRun,
   type CliUpload,
@@ -8,7 +8,7 @@ import { ERR, ok } from "@/lib/api";
 import { verifyPublicRepo } from "@/lib/verify-repo";
 
 // POST /api/submit/:task_id — combined endpoint. Opens a run and ingests
-// the CLI's report.json in one HTTP call so runners can copy-paste a
+// the CLI's report.json in one HTTP call so solutions can copy-paste a
 // single curl command. Body is the trap CLI report.json verbatim.
 //
 //   curl -X POST .../api/submit/word-count \
@@ -23,8 +23,8 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ task_id: string }> },
 ) {
-  const runner = await authRunner(req.headers.get("authorization"));
-  if (!runner) return ERR.unauthorized();
+  const solution = await authSolution(req.headers.get("authorization"));
+  if (!solution) return ERR.unauthorized();
 
   const { task_id } = await params;
   const task = await getTask(task_id);
@@ -65,7 +65,7 @@ export async function POST(
 
   const run = await submitRun({
     task_id,
-    runner_id: runner.id,
+    solution_id: solution.id,
     payload: body as CliUpload,
   });
   if (!run) return ERR.internal("submission failed");

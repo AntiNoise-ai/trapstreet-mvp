@@ -48,7 +48,7 @@ export default function ReferencePage() {
         title="Glossary"
         href="https://github.com/AntiNoise-ai/trapstreet/blob/main/docs/glossary.md"
       >
-        Every word in trapstreet, defined once. Runner, task, run,
+        Every word in trapstreet, defined once. Solution, task, run,
         case, metric, judge, grader, leaderboard, solution. Two
         pages. Useful when a term in the UI doesn&apos;t mean what
         you&apos;d guess (especially <Code>passed</Code> — it&apos;s

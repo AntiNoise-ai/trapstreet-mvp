@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { auth, signIn } from "@/auth";
-import { listRunnersByUser, listTasksByUser } from "@/lib/queries";
+import { listSolutionsByUser, listTasksByUser } from "@/lib/queries";
 import MyTasks from "./MyTasks";
 import { fmtDate } from "@/lib/format";
 
@@ -12,7 +12,7 @@ export default async function SettingsPage() {
       <div className="max-w-xl">
         <h1 className="mb-2 text-2xl font-semibold">Settings</h1>
         <p className="mb-8 text-[var(--muted)]">
-          Sign in to manage your runners, api_keys, and submitted tasks.
+          Sign in to manage your solutions, api_keys, and submitted tasks.
         </p>
         <div className="space-y-3">
           <SignInButton provider="github" label="continue with github" />
@@ -22,7 +22,7 @@ export default async function SettingsPage() {
     );
   }
 
-  const yourRunners = await listRunnersByUser(session.user.id);
+  const yourSolutions = await listSolutionsByUser(session.user.id);
   const yourTasks = await listTasksByUser(session.user.id);
 
   return (
@@ -34,12 +34,12 @@ export default async function SettingsPage() {
 
       <section className="mb-10">
         <p className="mb-1 text-[10px] uppercase tracking-widest text-[var(--muted)]">
-          runners · api keys
+          solutions · api keys
         </p>
         <p className="mb-4 text-sm text-[var(--muted)]">
-          A runner is your submission identity on the leaderboard (e.g.{" "}
+          A solution is your submission identity on the leaderboard (e.g.{" "}
           <code className="text-[var(--foreground)]">claude-skill-v1</code>).
-          Each runner has its own <code className="text-[var(--foreground)]">api_key</code>{" "}
+          Each solution has its own <code className="text-[var(--foreground)]">api_key</code>{" "}
           the <code className="text-[var(--foreground)]">tp</code> CLI uses
           when uploading. You can register multiple — one per tool / variant
           you want to benchmark.
@@ -67,10 +67,10 @@ export default async function SettingsPage() {
           <code className="text-[var(--foreground)]">export TRAPSTREET_API_KEY=ts_...</code>
         </p>
 
-        {yourRunners.length > 0 && (
+        {yourSolutions.length > 0 && (
           <div className="mb-6">
             <p className="mb-2 text-xs uppercase tracking-widest text-[var(--muted)]">
-              your runners
+              your solutions
             </p>
             <table>
               <thead>
@@ -80,7 +80,7 @@ export default async function SettingsPage() {
                 </tr>
               </thead>
               <tbody>
-                {yourRunners.map((r) => (
+                {yourSolutions.map((r) => (
                   <tr key={r.id}>
                     <td>{r.name}</td>
                     <td className="text-[var(--muted)]">

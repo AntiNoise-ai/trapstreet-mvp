@@ -1,5 +1,5 @@
 import {
-  authRunner,
+  authSolution,
   createComment,
   getThread,
 } from "@/lib/queries";
@@ -9,8 +9,8 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const runner = await authRunner(req.headers.get("authorization"));
-  if (!runner) return ERR.unauthorized();
+  const solution = await authSolution(req.headers.get("authorization"));
+  if (!solution) return ERR.unauthorized();
 
   const { id } = await params;
   const thread = await getThread(id);
@@ -27,7 +27,7 @@ export async function POST(
 
   const comment = await createComment({
     thread_id: id,
-    author_id: runner.id,
+    author_id: solution.id,
     body: text,
   });
   return ok({ comment });

@@ -1,13 +1,13 @@
 import { NextRequest } from "next/server";
 import {
-  authRunner,
+  authSolution,
   createThread,
   listThreads,
   subjectExists,
 } from "@/lib/queries";
 import { ERR, ok } from "@/lib/api";
 
-const SUBJECT_TYPES = ["task", "track", "run", "runner"] as const;
+const SUBJECT_TYPES = ["task", "track", "run", "solution"] as const;
 type SubjectType = (typeof SUBJECT_TYPES)[number];
 
 export async function GET(req: NextRequest) {
@@ -22,8 +22,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: Request) {
-  const runner = await authRunner(req.headers.get("authorization"));
-  if (!runner) return ERR.unauthorized();
+  const solution = await authSolution(req.headers.get("authorization"));
+  if (!solution) return ERR.unauthorized();
 
   let body: unknown;
   try {
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
 
   const thread = await createThread({
     title,
-    author_id: runner.id,
+    author_id: solution.id,
     subject_type: subject.type,
     subject_id: subject.id,
     body: firstPostBody,

@@ -1,9 +1,9 @@
-import { authRunner, createRun, getTask } from "@/lib/queries";
+import { authSolution, createRun, getTask } from "@/lib/queries";
 import { ERR, ok } from "@/lib/api";
 
 export async function POST(req: Request) {
-  const runner = await authRunner(req.headers.get("authorization"));
-  if (!runner) return ERR.unauthorized();
+  const solution = await authSolution(req.headers.get("authorization"));
+  if (!solution) return ERR.unauthorized();
 
   let body: unknown;
   try {
@@ -17,6 +17,6 @@ export async function POST(req: Request) {
   const task = await getTask(task_id);
   if (!task) return ERR.invalid(`task ${task_id} does not exist`);
 
-  const run = await createRun({ task_id, runner_id: runner.id });
+  const run = await createRun({ task_id, solution_id: solution.id });
   return ok({ run });
 }

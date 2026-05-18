@@ -22,7 +22,7 @@ export function fmtDate(d: Date | string | null | undefined): string {
 }
 
 // "2h ago" / "3d ago" / "2mo ago". For leaderboard's submitted column +
-// runner history rows. Returns "—" on null.
+// solution history rows. Returns "—" on null.
 export function fmtRelativeTime(d: Date | string | null | undefined): string {
   if (!d) return "—";
   const date = typeof d === "string" ? new Date(d) : d;

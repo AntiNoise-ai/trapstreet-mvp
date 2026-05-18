@@ -5,8 +5,8 @@ import { db } from "@/db/client";
 import {
   cases,
   comments,
-  runners,
   runs,
+  solutions,
   tasks,
   threads,
   users,
@@ -132,25 +132,25 @@ export async function deleteTask(id: string): Promise<void> {
 }
 
 // Best score (and run count) per task — for the task grid summary.
-// best_runner_id is included so the home grid can link the world-record
-// row directly to /runners/<id>.
+// best_solution_id is included so the home grid can link the world-record
+// row directly to /solutions/<id>.
 export interface TaskStat {
   runs: number;
   best_score: number | null;
-  best_runner: string | null;
-  best_runner_id: string | null;
+  best_solution: string | null;
+  best_solution_id: string | null;
 }
 
 export async function taskStats(): Promise<Map<string, TaskStat>> {
   const rows = await db
     .select({
       task_id: runs.task_id,
-      runner_id: runs.runner_id,
-      runner_name: runners.name,
+      solution_id: runs.solution_id,
+      solution_name: solutions.name,
       total_score: runs.total_score,
     })
     .from(runs)
-    .innerJoin(runners, eq(runners.id, runs.runner_id))
+    .innerJoin(solutions, eq(solutions.id, runs.solution_id))
     .where(eq(runs.status, "scored"));
 
   const map = new Map<string, TaskStat>();
@@ -158,8 +158,8 @@ export async function taskStats(): Promise<Map<string, TaskStat>> {
     const cur = map.get(r.task_id) ?? {
       runs: 0,
       best_score: null,
-      best_runner: null,
-      best_runner_id: null,
+      best_solution: null,
+      best_solution_id: null,
     };
     cur.runs += 1;
     if (
@@ -167,8 +167,8 @@ export async function taskStats(): Promise<Map<string, TaskStat>> {
       (cur.best_score === null || r.total_score > cur.best_score)
     ) {
       cur.best_score = r.total_score;
-      cur.best_runner = r.runner_name;
-      cur.best_runner_id = r.runner_id;
+      cur.best_solution = r.solution_name;
+      cur.best_solution_id = r.solution_id;
     }
     map.set(r.task_id, cur);
   }
@@ -198,43 +198,43 @@ export async function userById(id: string): Promise<UserRow | null> {
 }
 
 // -----------------------------------------------------------------------------
-// runners + auth
+// solutions + auth
 
-export async function getRunnerByApiKey(apiKey: string) {
+export async function getSolutionByApiKey(apiKey: string) {
   const rows = await db
     .select()
-    .from(runners)
-    .where(eq(runners.api_key, apiKey))
+    .from(solutions)
+    .where(eq(solutions.api_key, apiKey))
     .limit(1);
   return rows[0] ?? null;
 }
 
-export async function authRunner(authHeader: string | null) {
+export async function authSolution(authHeader: string | null) {
   if (!authHeader) return null;
   const m = /^Bearer\s+(.+)$/.exec(authHeader);
   if (!m) return null;
-  return getRunnerByApiKey(m[1]);
+  return getSolutionByApiKey(m[1]);
 }
 
-export async function getRunnerById(id: string) {
+export async function getSolutionById(id: string) {
   const rows = await db
     .select()
-    .from(runners)
-    .where(eq(runners.id, id))
+    .from(solutions)
+    .where(eq(solutions.id, id))
     .limit(1);
   return rows[0] ?? null;
 }
 
-export async function getRunnerByName(name: string) {
+export async function getSolutionByName(name: string) {
   const rows = await db
     .select()
-    .from(runners)
-    .where(eq(runners.name, name))
+    .from(solutions)
+    .where(eq(solutions.name, name))
     .limit(1);
   return rows[0] ?? null;
 }
 
-export async function createRunner(input: {
+export async function createSolution(input: {
   name: string;
   endpoint_url: string;
   user_id: string | null;
@@ -242,7 +242,7 @@ export async function createRunner(input: {
   const id = uid("r-");
   const apiKey = `ts_${uid("")}`;
   const [row] = await db
-    .insert(runners)
+    .insert(solutions)
     .values({
       id,
       name: input.name,
@@ -251,11 +251,11 @@ export async function createRunner(input: {
       user_id: input.user_id,
     })
     .returning();
-  return { runner: row, api_key: apiKey };
+  return { solution: row, api_key: apiKey };
 }
 
-export async function listRunnersByUser(userId: string) {
-  return db.select().from(runners).where(eq(runners.user_id, userId));
+export async function listSolutionsByUser(userId: string) {
+  return db.select().from(solutions).where(eq(solutions.user_id, userId));
 }
 
 // Idempotent insert of the users row. Needed when a stale JWT cookie
@@ -295,16 +295,16 @@ export async function ensureUserRow(
     .onConflictDoNothing();
 }
 
-// Used by /cli/authorize: returns this user's default runner identity
-// (used by `tp login`). If they have no runners yet, auto-creates one
+// Used by /cli/authorize: returns this user's default solution identity
+// (used by `tp login`). If they have no solutions yet, auto-creates one
 // named after them. We DON'T rotate the api_key on every login — login
 // is idempotent. To rotate, the user needs an explicit "rotate" action
 // in /settings (not built yet).
-export async function getOrCreateCliRunner(
+export async function getOrCreateCliSolution(
   userId: string,
   displayName: string | null,
 ): Promise<{ id: string; name: string; api_key: string }> {
-  const existing = await listRunnersByUser(userId);
+  const existing = await listSolutionsByUser(userId);
   if (existing.length > 0) {
     const r = existing[0];
     return { id: r.id, name: r.name, api_key: r.api_key };
@@ -317,23 +317,23 @@ export async function getOrCreateCliRunner(
       .slice(0, 24) || "user";
 
   // Try the bare slug first ("shuhc"); only append -2, -3, ... on
-  // collision. runners.name has a unique index, so we can't just hope.
-  const name = await pickAvailableRunnerName(slug);
-  const { runner, api_key } = await createRunner({
+  // collision. solutions.name has a unique index, so we can't just hope.
+  const name = await pickAvailableSolutionName(slug);
+  const { solution, api_key } = await createSolution({
     name,
     endpoint_url: "https://trapstreet.run/cli",
     user_id: userId,
   });
-  return { id: runner.id, name: runner.name, api_key };
+  return { id: solution.id, name: solution.name, api_key };
 }
 
-async function pickAvailableRunnerName(slug: string): Promise<string> {
+async function pickAvailableSolutionName(slug: string): Promise<string> {
   for (let i = 1; i < 1000; i++) {
     const candidate = i === 1 ? slug : `${slug}-${i}`;
     const exists = await db
-      .select({ id: runners.id })
-      .from(runners)
-      .where(eq(runners.name, candidate))
+      .select({ id: solutions.id })
+      .from(solutions)
+      .where(eq(solutions.name, candidate))
       .limit(1);
     if (exists.length === 0) return candidate;
   }
@@ -358,14 +358,14 @@ export async function listCasesForRun(runId: string): Promise<CaseRow[]> {
     .orderBy(asc(cases.case_id));
 }
 
-export async function createRun(input: { task_id: string; runner_id: string }) {
+export async function createRun(input: { task_id: string; solution_id: string }) {
   const id = uid("run-");
   const [row] = await db
     .insert(runs)
     .values({
       id,
       task_id: input.task_id,
-      runner_id: input.runner_id,
+      solution_id: input.solution_id,
       status: "created",
     })
     .returning();
@@ -454,16 +454,16 @@ function autoSummary(cs: CliCase[]): CliSummary {
 }
 
 // Open a run AND ingest a CLI upload in one shot. Used by the combined
-// POST /api/submit/:task_id endpoint that lets runners copy-paste a single
+// POST /api/submit/:task_id endpoint that lets solutions copy-paste a single
 // curl command.
 export async function submitRun(input: {
   task_id: string;
-  runner_id: string;
+  solution_id: string;
   payload: CliUpload;
 }): Promise<RunRow | null> {
   const run = await createRun({
     task_id: input.task_id,
-    runner_id: input.runner_id,
+    solution_id: input.solution_id,
   });
   const now = new Date();
   await db
@@ -544,12 +544,12 @@ export async function ingestCliUpload(
 
 export type LeaderboardRow = {
   rank: number;
-  runner_id: string;
+  solution_id: string;
   // The submission identity (what we call "solution" in the UI). Set by
-  // the user via `tp login` / runner registration — defaults to an
+  // the user via `tp login` / solution registration — defaults to an
   // auto-generated handle.
-  runner_name: string;
-  // GitHub/Google display name of the human who owns the runner. Shown
+  solution_name: string;
+  // GitHub/Google display name of the human who owns the solution. Shown
   // as a small "by Xxx" line under the solution name on the leaderboard.
   user_name: string | null;
   run_id: string;
@@ -600,8 +600,8 @@ export async function leaderboardEntries(filter: {
   // URL params with the task's ranking_metric as fallback default.
   sort?: SortKey;
   direction?: RankingDirection;
-  // false (default) → dedup to each runner's best run per task. true →
-  // raw list of every scored run (used by the "all runs" view, runner
+  // false (default) → dedup to each solution's best run per task. true →
+  // raw list of every scored run (used by the "all runs" view, solution
   // history, etc.)
   all?: boolean;
 }): Promise<LeaderboardRow[]> {
@@ -641,10 +641,10 @@ export async function leaderboardEntries(filter: {
   const rows = await db
     .select({
       run_id: runs.id,
-      runner_id: runs.runner_id,
+      solution_id: runs.solution_id,
       task_id: runs.task_id,
       track: tasks.track,
-      runner_name: runners.name,
+      solution_name: solutions.name,
       user_name: users.name,
       passed: runs.passed,
       total_score: runs.total_score,
@@ -658,14 +658,14 @@ export async function leaderboardEntries(filter: {
     })
     .from(runs)
     .innerJoin(tasks, eq(tasks.id, runs.task_id))
-    .innerJoin(runners, eq(runners.id, runs.runner_id))
-    // Left-join users so runners without an owning user (anonymous
+    .innerJoin(solutions, eq(solutions.id, runs.solution_id))
+    // Left-join users so solutions without an owning user (anonymous
     // registration) still appear; user_name will just be null.
-    .leftJoin(users, eq(users.id, runners.user_id))
+    .leftJoin(users, eq(users.id, solutions.user_id))
     .where(and(...where))
     .orderBy(primary, ...tiebreakers);
 
-  // Dedup to best run per (runner, task). Rows are already sorted by
+  // Dedup to best run per (solution, task). Rows are already sorted by
   // the ranking criteria, so the first row we see for a given key wins.
   // Postgres has DISTINCT ON for this server-side, but Drizzle doesn't
   // expose it cleanly; in-memory works fine at v0 scale.
@@ -679,7 +679,7 @@ export async function leaderboardEntries(filter: {
           const seen = new Set<string>();
           const out: typeof rows = [];
           for (const r of rows) {
-            const key = `${r.runner_name}|${r.task_id}`;
+            const key = `${r.solution_name}|${r.task_id}`;
             if (seen.has(key)) continue;
             seen.add(key);
             out.push(r);
@@ -689,8 +689,8 @@ export async function leaderboardEntries(filter: {
 
   return finalRows.map((r, i) => ({
     rank: i + 1,
-    runner_id: r.runner_id,
-    runner_name: r.runner_name,
+    solution_id: r.solution_id,
+    solution_name: r.solution_name,
     user_name: r.user_name,
     run_id: r.run_id,
     task_id: r.task_id,
@@ -710,9 +710,9 @@ export async function leaderboardEntries(filter: {
   }));
 }
 
-// Runner history — all runs across all tasks for one runner.
+// Solution history — all runs across all tasks for one solution.
 // Sorted newest first.
-export async function listRunsByRunner(runnerId: string) {
+export async function listRunsBySolution(solutionId: string) {
   return db
     .select({
       run_id: runs.id,
@@ -732,7 +732,7 @@ export async function listRunsByRunner(runnerId: string) {
     })
     .from(runs)
     .innerJoin(tasks, eq(tasks.id, runs.task_id))
-    .where(eq(runs.runner_id, runnerId))
+    .where(eq(runs.solution_id, solutionId))
     .orderBy(desc(runs.created_at));
 }
 
@@ -843,8 +843,8 @@ export async function subjectExists(
       return (await getTask(id)) !== null;
     case "run":
       return (await getRun(id)) !== null;
-    case "runner":
-      return (await getRunnerById(id)) !== null;
+    case "solution":
+      return (await getSolutionById(id)) !== null;
     case "track": {
       const rows = await db
         .select({ id: tasks.id })

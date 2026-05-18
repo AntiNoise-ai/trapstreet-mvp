@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth, signIn } from "@/auth";
-import { ensureUserRow, getOrCreateCliRunner } from "@/lib/queries";
+import { ensureUserRow, getOrCreateCliSolution } from "@/lib/queries";
 
 // /cli/authorize?return=http://localhost:<port>/callback
 //
@@ -61,20 +61,20 @@ export default async function CliAuthorizePage({
       throw new Error("invalid return url");
     }
     // Recreate the users row if a stale JWT outlived a DB reset
-    // (otherwise the runners.user_id FK insert below fails).
+    // (otherwise the solutions.user_id FK insert below fails).
     await ensureUserRow(s.user.id, {
       name: s.user.name,
       email: s.user.email,
       image: s.user.image,
     });
-    const runner = await getOrCreateCliRunner(
+    const solution = await getOrCreateCliSolution(
       s.user.id,
       s.user.name ?? s.user.email ?? "user",
     );
     const sep = returnUrl.includes("?") ? "&" : "?";
     redirect(
-      `${returnUrl}${sep}api_key=${encodeURIComponent(runner.api_key)}` +
-        `&runner=${encodeURIComponent(runner.name)}`,
+      `${returnUrl}${sep}api_key=${encodeURIComponent(solution.api_key)}` +
+        `&solution=${encodeURIComponent(solution.name)}`,
     );
   }
 
@@ -83,7 +83,7 @@ export default async function CliAuthorizePage({
       <h1 className="mb-2 text-2xl font-semibold">Pair CLI</h1>
       <p className="mb-6 text-[var(--muted)]">
         Your <code className="text-[var(--foreground)]">tp</code> CLI wants
-        to act on your behalf. Click approve to send your default runner&apos;s{" "}
+        to act on your behalf. Click approve to send your default solution&apos;s{" "}
         <code className="text-[var(--foreground)]">api_key</code> back to{" "}
         <code className="text-[var(--foreground)]">{returnUrl}</code>.
       </p>

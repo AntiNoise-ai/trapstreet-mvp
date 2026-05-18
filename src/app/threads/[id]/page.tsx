@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  getRunnerById,
+  getSolutionById,
   getThread,
   listComments,
 } from "@/lib/queries";
@@ -18,14 +18,14 @@ export default async function ThreadDetailPage({
 
   const [comments, author] = await Promise.all([
     listComments(id),
-    getRunnerById(thread.author_id),
+    getSolutionById(thread.author_id),
   ]);
 
-  // Resolve author runner names for each comment in one round trip.
+  // Resolve author solution names for each comment in one round trip.
   const authorIds = [...new Set(comments.map((c) => c.author_id))];
   const authors = new Map<string, string>();
   for (const aid of authorIds) {
-    const a = await getRunnerById(aid);
+    const a = await getSolutionById(aid);
     if (a) authors.set(aid, a.name);
   }
 

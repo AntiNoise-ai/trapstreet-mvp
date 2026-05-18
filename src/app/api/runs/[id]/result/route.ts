@@ -1,5 +1,5 @@
 import {
-  authRunner,
+  authSolution,
   getRun,
   ingestCliUpload,
   type CliUpload,
@@ -15,14 +15,14 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const runner = await authRunner(req.headers.get("authorization"));
-  if (!runner) return ERR.unauthorized();
+  const solution = await authSolution(req.headers.get("authorization"));
+  if (!solution) return ERR.unauthorized();
 
   const { id } = await params;
   const run = await getRun(id);
   if (!run) return ERR.notFound("run not found");
-  if (run.runner_id !== runner.id) {
-    return ERR.forbidden("run owned by another runner");
+  if (run.solution_id !== solution.id) {
+    return ERR.forbidden("run owned by another solution");
   }
   if (run.status === "scored" || run.status === "failed") {
     return ERR.invalid(`run is terminal (${run.status})`);

@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  listRunnersByUser,
+  listSolutionsByUser,
   listTasksByUser,
   userById,
 } from "@/lib/queries";
 
 // Public profile for a trapstreet user. Reached from the "by xxx" line
 // on task cards / leaderboard rows. Shows the tasks they've created
-// and the runners they own.
+// and the solutions they own.
 export default async function UserProfilePage({
   params,
 }: {
@@ -18,9 +18,9 @@ export default async function UserProfilePage({
   const user = await userById(id);
   if (!user) notFound();
 
-  const [tasks, runners] = await Promise.all([
+  const [tasks, solutions] = await Promise.all([
     listTasksByUser(id),
-    listRunnersByUser(id),
+    listSolutionsByUser(id),
   ]);
 
   return (
@@ -67,19 +67,19 @@ export default async function UserProfilePage({
 
       <section>
         <h2 className="mb-3 text-sm uppercase tracking-widest text-[var(--muted)]">
-          runners ({runners.length})
+          solutions ({solutions.length})
         </h2>
-        {runners.length === 0 ? (
+        {solutions.length === 0 ? (
           <p className="text-sm text-[var(--muted)]">
-            No runners registered yet — sign in via the CLI with{" "}
+            No solutions registered yet — sign in via the CLI with{" "}
             <code className="text-[var(--foreground)]">tp login</code>{" "}
             to create one.
           </p>
         ) : (
           <ul className="space-y-1 text-sm">
-            {runners.map((r) => (
+            {solutions.map((r) => (
               <li key={r.id}>
-                <Link href={`/runners/${r.id}`}>{r.name}</Link>
+                <Link href={`/solutions/${r.id}`}>{r.name}</Link>
               </li>
             ))}
           </ul>

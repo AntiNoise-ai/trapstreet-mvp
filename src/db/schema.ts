@@ -33,10 +33,14 @@ export const users = pgTable(
 );
 
 // -----------------------------------------------------------------------------
-// runners — owned by a user. api_key kept plaintext for v0; hash later.
+// solutions — a benchmarkable agent identity. Owned by a user. Holds
+// the api_key that `tp` uses to authenticate uploads. (Historically
+// called "solution" — renamed to match how AI eval users actually talk
+// about the thing on the leaderboard.) api_key kept plaintext for v0;
+// hash later.
 
-export const runners = pgTable(
-  "runners",
+export const solutions = pgTable(
+  "solutions",
   {
     id: text("id").primaryKey(),
     user_id: text("user_id").references(() => users.id, { onDelete: "cascade" }),
@@ -48,8 +52,8 @@ export const runners = pgTable(
       .default(sql`now()`),
   },
   (t) => [
-    uniqueIndex("runners_name_idx").on(t.name),
-    uniqueIndex("runners_api_key_idx").on(t.api_key),
+    uniqueIndex("solutions_name_idx").on(t.name),
+    uniqueIndex("solutions_api_key_idx").on(t.api_key),
   ],
 );
 
@@ -128,9 +132,9 @@ export const runs = pgTable("runs", {
   task_id: text("task_id")
     .notNull()
     .references(() => tasks.id, { onDelete: "cascade" }),
-  runner_id: text("runner_id")
+  solution_id: text("solution_id")
     .notNull()
-    .references(() => runners.id, { onDelete: "cascade" }),
+    .references(() => solutions.id, { onDelete: "cascade" }),
   status: text("status").$type<RunStatus>().notNull(),
 
   // ── Well-known fields extracted from the run summary for fast SQL sort ─
@@ -188,14 +192,14 @@ export const cases = pgTable("cases", {
 // -----------------------------------------------------------------------------
 // threads + comments
 
-export type SubjectType = "task" | "track" | "run" | "runner";
+export type SubjectType = "task" | "track" | "run" | "solution";
 
 export const threads = pgTable("threads", {
   id: text("id").primaryKey(),
   title: text("title").notNull(),
   author_id: text("author_id")
     .notNull()
-    .references(() => runners.id, { onDelete: "cascade" }),
+    .references(() => solutions.id, { onDelete: "cascade" }),
   subject_type: text("subject_type").$type<SubjectType>().notNull(),
   subject_id: text("subject_id").notNull(),
   comment_count: integer("comment_count").notNull().default(0),
@@ -214,7 +218,7 @@ export const comments = pgTable("comments", {
     .references(() => threads.id, { onDelete: "cascade" }),
   author_id: text("author_id")
     .notNull()
-    .references(() => runners.id, { onDelete: "cascade" }),
+    .references(() => solutions.id, { onDelete: "cascade" }),
   body: text("body").notNull(),
   created_at: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -225,7 +229,7 @@ export const comments = pgTable("comments", {
 // shared row types
 
 export type UserRow = typeof users.$inferSelect;
-export type RunnerRow = typeof runners.$inferSelect;
+export type SolutionRow = typeof solutions.$inferSelect;
 export type TaskRow = typeof tasks.$inferSelect;
 export type RunRow = typeof runs.$inferSelect;
 export type CaseRow = typeof cases.$inferSelect;

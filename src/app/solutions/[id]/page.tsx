@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getRunnerById, listRunsByRunner } from "@/lib/queries";
+import { getSolutionById, listRunsBySolution } from "@/lib/queries";
 import {
   fmtCost,
   fmtLatency,
@@ -8,16 +8,16 @@ import {
   fmtScore,
 } from "@/lib/format";
 
-export default async function RunnerDetailPage({
+export default async function SolutionDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const runner = await getRunnerById(id);
-  if (!runner) notFound();
+  const solution = await getSolutionById(id);
+  if (!solution) notFound();
 
-  const runs = await listRunsByRunner(runner.id);
+  const runs = await listRunsBySolution(solution.id);
 
   // Best run per task (for the summary cards above the history table).
   // Same logic as leaderboard dedup — sort by score desc, latency asc,
@@ -40,12 +40,12 @@ export default async function RunnerDetailPage({
   return (
     <div>
       <p className="mb-1 text-[10px] uppercase tracking-widest text-[var(--muted)]">
-        runner
+        solution
       </p>
-      <h1 className="mb-2 text-2xl font-semibold">{runner.name}</h1>
+      <h1 className="mb-2 text-2xl font-semibold">{solution.name}</h1>
       <p className="mb-6 text-sm text-[var(--muted)]">
         {totalRuns} total run{totalRuns === 1 ? "" : "s"} · {scoredRuns}{" "}
-        scored · joined {fmtRelativeTime(runner.created_at)}
+        scored · joined {fmtRelativeTime(solution.created_at)}
       </p>
 
       {bestPerTask.size > 0 && (

@@ -57,7 +57,7 @@ export default async function TaskLeaderboardPage({
       <p className="mb-2 text-xs text-[var(--muted)]">
         {task.ranking_metric === "no_ranking"
           ? "Classification task — submissions shown newest first, not ranked."
-          : "Each row is a runner's best run on this task. Click a column header to re-sort. Click a runner to see their full submission history."}
+          : "Each row is a solution's best run on this task. Click a column header to re-sort. Click a solution to see their full submission history."}
       </p>
 
       <p className="text-xs text-[var(--muted)]">
@@ -164,9 +164,9 @@ function Leaderboard({
           <tr key={e.run_id}>
             <td className="text-[var(--muted)]">{e.rank}</td>
             <td className="font-medium">
-              {/* Solution (runner.name) is the primary id; the human's
+              {/* Solution (solution.name) is the primary id; the human's
                   display name and the source-repo link sit below. */}
-              <Link href={`/runners/${e.runner_id}`}>{e.runner_name}</Link>
+              <Link href={`/solutions/${e.solution_id}`}>{e.solution_name}</Link>
               <SolutionSubline e={e} />
             </td>
             <td

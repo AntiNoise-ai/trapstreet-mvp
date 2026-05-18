@@ -173,7 +173,7 @@ function Header({
       <p className="text-sm text-[var(--muted)]">
         Each case feeds files from{" "}
         <code className="text-[var(--foreground)]">inputs/&lt;id&gt;/</code>{" "}
-        to the runner, expects files in{" "}
+        to the solution, expects files in{" "}
         <code className="text-[var(--foreground)]">expected/&lt;id&gt;/</code>,
         and is scored by{" "}
         <code className="text-[var(--foreground)]">judge.py</code>

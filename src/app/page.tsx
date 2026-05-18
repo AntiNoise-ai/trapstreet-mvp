@@ -128,23 +128,23 @@ tp run && tp submit               # in any task's solution dir`}
                         )}{" "}
                         · {s?.runs ?? 0} run{(s?.runs ?? 0) === 1 ? "" : "s"}
                       </span>
-                      {s?.best_runner && (
+                      {s?.best_solution && (
                         <span>
                           <span className="text-[var(--muted)]">wr </span>
                           <span className="text-[var(--accent)]">
                             {fmtScore(s.best_score)}
                           </span>
                           <span className="text-[var(--muted)]"> by </span>
-                          {s.best_runner_id ? (
+                          {s.best_solution_id ? (
                             <Link
-                              href={`/runners/${s.best_runner_id}`}
+                              href={`/solutions/${s.best_solution_id}`}
                               className="relative z-10 text-[var(--foreground)]"
                             >
-                              {s.best_runner}
+                              {s.best_solution}
                             </Link>
                           ) : (
                             <span className="text-[var(--foreground)]">
-                              {s.best_runner}
+                              {s.best_solution}
                             </span>
                           )}
                         </span>

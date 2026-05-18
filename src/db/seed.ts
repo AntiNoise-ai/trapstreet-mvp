@@ -4,7 +4,7 @@ config({ path: ".env" });
 
 async function main() {
   const { db, schema } = await import("./client");
-  const { runners, tasks, runs, cases, threads, comments } = schema;
+  const { solutions, tasks, runs, cases, threads, comments } = schema;
   console.log("seeding…");
 
   // -------------------------------------------------------------------------
@@ -172,7 +172,7 @@ leaderboard's \`total_score\` shows the avg.
 
 ## Disqualification
 
-- Reading from disk instead of stdin counts as cheating (the runner
+- Reading from disk instead of stdin counts as cheating (the solution
   pipes stdin into your process; ignore that and you'll miss the
   \`config\` file completely).
 
@@ -262,9 +262,9 @@ correctly before tackling a real task. Everyone scores 1.0 here, so
     .onConflictDoNothing();
 
   // -------------------------------------------------------------------------
-  // runners
+  // solutions
   await db
-    .insert(runners)
+    .insert(solutions)
     .values([
       {
         id: "r-regex",
@@ -301,7 +301,7 @@ correctly before tackling a real task. Everyone scores 1.0 here, so
       {
         id: "run-wc-001",
         task_id: "word-count",
-        runner_id: "r-claude-skill",
+        solution_id: "r-claude-skill",
         status: "scored",
         passed: true,
         total_score: 1.0,
@@ -330,7 +330,7 @@ correctly before tackling a real task. Everyone scores 1.0 here, so
       {
         id: "run-wc-002",
         task_id: "word-count",
-        runner_id: "r-regex",
+        solution_id: "r-regex",
         status: "scored",
         passed: false,
         total_score: 0.5,
@@ -358,7 +358,7 @@ correctly before tackling a real task. Everyone scores 1.0 here, so
       {
         id: "run-wc-003",
         task_id: "word-count",
-        runner_id: "r-gpt5",
+        solution_id: "r-gpt5",
         status: "scored",
         passed: true,
         total_score: 1.0,
@@ -387,7 +387,7 @@ correctly before tackling a real task. Everyone scores 1.0 here, so
       {
         id: "run-tn-001",
         task_id: "tenancy-agreement",
-        runner_id: "r-claude-skill",
+        solution_id: "r-claude-skill",
         status: "scored",
         passed: true,
         total_score: 0.875,
@@ -419,7 +419,7 @@ correctly before tackling a real task. Everyone scores 1.0 here, so
       {
         id: "run-tn-002",
         task_id: "tenancy-agreement",
-        runner_id: "r-gpt5",
+        solution_id: "r-gpt5",
         status: "scored",
         passed: false,
         total_score: 0.625,
@@ -451,7 +451,7 @@ correctly before tackling a real task. Everyone scores 1.0 here, so
       {
         id: "run-echo-001",
         task_id: "echo",
-        runner_id: "r-regex",
+        solution_id: "r-regex",
         status: "failed",
         cases_passed: 0,
         cases_failed: 0,
@@ -466,7 +466,7 @@ correctly before tackling a real task. Everyone scores 1.0 here, so
       {
         id: "run-echo-002",
         task_id: "echo",
-        runner_id: "r-regex",
+        solution_id: "r-regex",
         status: "scored",
         passed: true,
         total_score: 1.0,
@@ -493,7 +493,7 @@ correctly before tackling a real task. Everyone scores 1.0 here, so
       {
         id: "run-echo-003",
         task_id: "echo",
-        runner_id: "r-claude-skill",
+        solution_id: "r-claude-skill",
         status: "scored",
         passed: true,
         total_score: 1.0,
@@ -521,7 +521,7 @@ correctly before tackling a real task. Everyone scores 1.0 here, so
       {
         id: "run-echo-004",
         task_id: "echo",
-        runner_id: "r-gpt5",
+        solution_id: "r-gpt5",
         status: "scored",
         passed: true,
         total_score: 1.0,

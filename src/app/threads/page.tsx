@@ -17,7 +17,7 @@ export default async function ThreadsPage({
     <div>
       <h1 className="mb-2 text-2xl font-semibold">Threads</h1>
       <p className="mb-8 text-[var(--muted)]">
-        Discussion attached to a task, track, run, or runner.
+        Discussion attached to a task, track, run, or solution.
       </p>
 
       {(sp.subject_type || sp.subject_id) && (

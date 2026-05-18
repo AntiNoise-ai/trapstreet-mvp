@@ -13,8 +13,8 @@ export interface ApiError {
     | "INTERNAL";
 }
 
-export interface CreateRunnerResponse {
-  runner: {
+export interface CreateSolutionResponse {
+  solution: {
     id: string;
     name: string;
     endpoint_url: string;
