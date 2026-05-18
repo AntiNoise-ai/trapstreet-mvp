@@ -33,6 +33,12 @@ export async function HeaderAuth() {
       </summary>
       <div className="absolute right-0 z-10 mt-2 w-44 rounded border border-[var(--border)] bg-[var(--background)] py-1 shadow-lg">
         <Link
+          href={`/users/${session.user.id}`}
+          className="block px-3 py-1.5 text-[13px] text-[var(--muted)] hover:bg-[var(--border)]/30 hover:text-[var(--foreground)] hover:no-underline"
+        >
+          your profile
+        </Link>
+        <Link
           href="/tasks/new"
           className="block px-3 py-1.5 text-[13px] text-[var(--muted)] hover:bg-[var(--border)]/30 hover:text-[var(--foreground)] hover:no-underline"
         >

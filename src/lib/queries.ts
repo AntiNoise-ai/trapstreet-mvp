@@ -309,19 +309,37 @@ export async function getOrCreateCliRunner(
     const r = existing[0];
     return { id: r.id, name: r.name, api_key: r.api_key };
   }
-  const slug = (displayName || "user")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 20) || "user";
-  const idShort = userId.slice(-8).replace(/[^a-z0-9]/gi, "");
-  const name = `${slug}-${idShort}`;
+  const slug =
+    (displayName || "user")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 24) || "user";
+
+  // Try the bare slug first ("shuhc"); only append -2, -3, ... on
+  // collision. runners.name has a unique index, so we can't just hope.
+  const name = await pickAvailableRunnerName(slug);
   const { runner, api_key } = await createRunner({
     name,
     endpoint_url: "https://trapstreet.run/cli",
     user_id: userId,
   });
   return { id: runner.id, name: runner.name, api_key };
+}
+
+async function pickAvailableRunnerName(slug: string): Promise<string> {
+  for (let i = 1; i < 1000; i++) {
+    const candidate = i === 1 ? slug : `${slug}-${i}`;
+    const exists = await db
+      .select({ id: runners.id })
+      .from(runners)
+      .where(eq(runners.name, candidate))
+      .limit(1);
+    if (exists.length === 0) return candidate;
+  }
+  // Astronomically unlikely fallback — 1000 people with the exact same
+  // github display name all signing up.
+  return `${slug}-${Date.now()}`;
 }
 
 // -----------------------------------------------------------------------------
