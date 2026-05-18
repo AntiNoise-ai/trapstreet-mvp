@@ -1,7 +1,7 @@
 // Docs source-of-truth. Markdown rendered via <MarkdownBlock>. When this
 // grows past a single page, split into multiple route files.
 
-export const BUILD_A_TASK_MD = String.raw`
+export const BUILD_A_TASK_MD = `
 We're going to build a task called \`sum-two-numbers\`. Runners get
 two ints in a JSON file. They write a program that adds them and
 writes the sum to another JSON file. We score whether their answer
@@ -173,7 +173,7 @@ how that flows from the solver side.
 | (auto fallback) | once if no grader | case scores | averages, marks passed at ≥ 0.8 |
 `;
 
-export const BUILD_A_SOLUTION_MD = String.raw`
+export const BUILD_A_SOLUTION_MD = `
 We're going to write a solver for the \`sum-two-numbers\` task from
 [build a task](/docs/build-a-task). It hands you two ints, expects you
 back their sum. About 5 minutes once you have \`uv\` + \`tp\`.
