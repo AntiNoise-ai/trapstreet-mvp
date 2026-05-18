@@ -5,6 +5,7 @@
 
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
 
 const COMPONENTS: Components = {
   h2: ({ children }) => (
@@ -102,7 +103,11 @@ const COMPONENTS: Components = {
 
 export function MarkdownBlock({ md }: { md: string }) {
   return (
-    <ReactMarkdown remarkPlugins={[remarkGfm]} components={COMPONENTS}>
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      rehypePlugins={[rehypeHighlight]}
+      components={COMPONENTS}
+    >
       {md}
     </ReactMarkdown>
   );

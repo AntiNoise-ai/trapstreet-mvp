@@ -1,4 +1,16 @@
 @import "tailwindcss";
+/* highlight.js theme for code blocks rendered by MarkdownBlock
+   (react-markdown + rehype-highlight). github-dark fits the rest of
+   the site palette. */
+@import "highlight.js/styles/github-dark.css";
+
+/* Defer the <pre> chrome (bg + border + padding) to our MarkdownBlock
+   styling and let highlight.js only color the tokens — otherwise the
+   theme's own background sits awkwardly inside our pre's padding. */
+.hljs {
+  background: transparent !important;
+  padding: 0 !important;
+}
 
 :root {
   --background: #0a0a0a;
