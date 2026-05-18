@@ -54,7 +54,7 @@ tasks:
 - judge/grader write their result JSON to **stdout**; trap captures and stores it as `metrics`
 - `payload_envvar` in traptask.yaml overrides the env var name (default `TRAPTASK_PAYLOAD`)
 
-**Namespace key convention**: filenames including extension (`config.json`, `stdout`, `meta.json`).
+**Namespace key convention**: filenames including extension (`config.json`, `case_stdout`, `case_meta.json`).
 
 **`.trap/` workspace**:
 ```
@@ -62,7 +62,7 @@ tasks:
 └── {task}/
     ├── latest -> 2026-05-09T14:30:00/   # symlink to most recent run
     └── 2026-05-09T14:30:00/
-        ├── {case_id}/                    # case outputs (stdout, stderr, meta.json, file_outputs)
+        ├── {case_id}/                    # case outputs (case_stdout, case_stderr, case_meta.json, file_outputs)
         └── report.json                   # report for this run
 ```
 
@@ -73,8 +73,8 @@ tasks:
 ```
 loader  →  runner  →  judge  →  reporter
   ↑           ↑            ↑            ↑
-YAML        async       built-in     rich / JSON
-parsing   subprocess   or custom
+YAML       subprocess   built-in     rich / JSON
+parsing                or custom
 ```
 
 Modules interact only through pydantic models (serialisable data). No shared state.
