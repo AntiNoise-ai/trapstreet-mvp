@@ -42,6 +42,15 @@ const SKIP_LEAVES = new Set([
   "tokens_total",
   "threshold",
   "by_category",
+  "by_category.personality",
+  // judge.py per-case fields that aren't comparable / interesting in
+  // the grid:
+  "matcher_results", // array of per-check {pass, reason} — not summable
+  "raw_responses", // array — too big for a cell anyway
+  "agent_answer", // verbatim solver stdout — explodes the column
+  "id", // case id; same per row, no signal
+  "category", // case metadata; same per row
+  "difficulty", // case metadata; same per row
 ]);
 
 // Top-level namespace prefixes to drop from labels (so
@@ -105,7 +114,7 @@ export function ProfileList({
             {columns.map((col) => (
               <td key={col.path}>
                 <MetricCell
-                  value={getPath(row.grader_metrics, col.path)}
+                  value={getPath(mergedMetrics(row), col.path)}
                   type={col.type}
                 />
               </td>
@@ -124,12 +133,22 @@ export function ProfileList({
 
 // -- column discovery --------------------------------------------------------
 
+// Merge run-level summary (grader_metrics) and the first case's judge
+// metrics (case_metrics[0]) into one bucket. Case-level fields win on
+// key collision — they're the richer source for self-profile tasks.
+function mergedMetrics(row: LeaderboardRow): Record<string, unknown> | null {
+  const caseM = row.case_metrics && row.case_metrics[0] ? row.case_metrics[0] : null;
+  if (!row.grader_metrics && !caseM) return null;
+  return { ...(row.grader_metrics ?? {}), ...(caseM ?? {}) };
+}
+
 function discoverColumns(entries: LeaderboardRow[]): Column[] {
   // Path → first non-null example value (for type inference).
   const paths = new Map<string, unknown>();
   for (const e of entries) {
-    if (!e.grader_metrics) continue;
-    walkLeaves(e.grader_metrics, "", (path, value) => {
+    const m = mergedMetrics(e);
+    if (!m) continue;
+    walkLeaves(m, "", (path, value) => {
       const leaf = path.split(".").pop()!;
       if (SKIP_LEAVES.has(leaf) || SKIP_LEAVES.has(path)) return;
       // Skip arrays — too big for a cell. (E.g. raw_responses: [32 ints].)
@@ -236,8 +255,8 @@ function applySort(
     });
   }
   return [...entries].sort((a, b) => {
-    const av = getPath(a.grader_metrics, sortKey);
-    const bv = getPath(b.grader_metrics, sortKey);
+    const av = getPath(mergedMetrics(a), sortKey);
+    const bv = getPath(mergedMetrics(b), sortKey);
     if (av == null && bv == null) return 0;
     if (av == null) return 1; // nulls last regardless of direction
     if (bv == null) return -1;

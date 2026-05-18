@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { and, asc, desc, eq, or, sql as raw, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or, sql as raw, type SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/db/client";
 import {
@@ -566,10 +566,15 @@ export type LeaderboardRow = {
   // Self-reported metadata from trap.yaml. The UI looks for `repo`
   // (GitHub URL) to render a source-code link next to the solution.
   metadata: Record<string, unknown> | null;
-  // Grader.py's full output (the "rich" per-run metrics like mbti_type,
-  // percentages, bias_stats). Only the ProfileList view actively walks
-  // this for column rendering on no_ranking tasks.
+  // Grader.py's full output (the run-level summary). Note: rich
+  // per-case metrics like mbti_type live in cases.metrics, NOT here.
+  // See case_metrics for that.
   grader_metrics: Record<string, unknown> | null;
+  // judge.py per-case output, ordered by case_id. Populated only for
+  // no_ranking tasks (which typically have 1-N cases that ARE the
+  // profile). ProfileList walks the first case's metrics alongside
+  // grader_metrics so MBTI-style rich fields render as columns.
+  case_metrics: Record<string, unknown>[] | null;
 };
 
 // What the leaderboard can sort by. Superset of RankingMetric — we also
@@ -692,6 +697,30 @@ export async function leaderboardEntries(filter: {
           return out;
         })();
 
+  // For no_ranking tasks, the "rich" per-submission metrics (mbti_type,
+  // percentages, bias_stats etc) live in cases.metrics — judge.py
+  // outputs them per case. Batch-fetch and group by run_id so the
+  // ProfileList can walk them as columns.
+  const caseMetricsByRun = new Map<string, Record<string, unknown>[]>();
+  if (sort === "no_ranking" && finalRows.length > 0) {
+    const runIds = finalRows.map((r) => r.run_id);
+    const caseRows = await db
+      .select({
+        run_id: cases.run_id,
+        case_id: cases.case_id,
+        metrics: cases.metrics,
+      })
+      .from(cases)
+      .where(inArray(cases.run_id, runIds))
+      .orderBy(asc(cases.run_id), asc(cases.case_id));
+    for (const c of caseRows) {
+      if (!c.metrics || typeof c.metrics !== "object") continue;
+      const list = caseMetricsByRun.get(c.run_id) ?? [];
+      list.push(c.metrics as Record<string, unknown>);
+      caseMetricsByRun.set(c.run_id, list);
+    }
+  }
+
   return finalRows.map((r, i) => ({
     rank: i + 1,
     solution_id: r.solution_id,
@@ -716,6 +745,7 @@ export async function leaderboardEntries(filter: {
       r.grader_metrics && typeof r.grader_metrics === "object"
         ? (r.grader_metrics as Record<string, unknown>)
         : null,
+    case_metrics: caseMetricsByRun.get(r.run_id) ?? null,
   }));
 }
 
