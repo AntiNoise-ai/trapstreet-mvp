@@ -11,11 +11,20 @@ type Tab = {
   exact?: boolean;
 };
 
-export function TaskTabs({ taskId }: { taskId: string }) {
+export function TaskTabs({
+  taskId,
+  isProfiles = false,
+}: {
+  taskId: string;
+  // When the task is no_ranking (classification / self-profile), the
+  // first tab reads as "profiles" — there's no ranking happening, calling
+  // it a leaderboard misleads.
+  isProfiles?: boolean;
+}) {
   const pathname = usePathname();
   const base = `/tasks/${taskId}`;
   const tabs: Tab[] = [
-    { label: "leaderboard", href: base, exact: true },
+    { label: isProfiles ? "profiles" : "leaderboard", href: base, exact: true },
     { label: "rules", href: `${base}/rules` },
     { label: "cases", href: `${base}/cases` },
     { label: "forum", href: `${base}/forum` },

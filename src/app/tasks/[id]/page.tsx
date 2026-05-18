@@ -8,6 +8,7 @@ import {
 } from "@/lib/queries";
 import type { RankingDirection } from "@/db/schema";
 import { fmtCost, fmtLatency, fmtRelativeTime, fmtScore } from "@/lib/format";
+import { ProfileList, type Direction } from "@/components/profile-list";
 
 // Leaderboard tab. Header + tabs come from layout.tsx. The "Try it" and
 // "Submit your own" how-to-run blocks moved to /docs.
@@ -22,6 +23,29 @@ export default async function TaskLeaderboardPage({
   const sp = await searchParams;
   const task = await getTask(id);
   if (!task) notFound();
+
+  // For no_ranking (classification / self-profile) tasks, we always
+  // fetch newest-first in SQL and let ProfileList do client-side sort
+  // on whatever leaf in grader_metrics the URL points at. The sort key
+  // there can be any path like "mbti_type" or "percentages.E_I.I" —
+  // outside the SQL SortKey vocabulary.
+  if (task.ranking_metric === "no_ranking") {
+    const entries = await leaderboardEntries({
+      task_id: task.id,
+      sort: "no_ranking",
+    });
+    const sortKey = sp.sort?.trim() || null;
+    const sortDir: Direction = sp.dir === "asc" ? "asc" : "desc";
+    return (
+      <ProfilesView
+        entries={entries}
+        taskId={task.id}
+        sortKey={sortKey}
+        sortDir={sortDir}
+        traptaskRef={task.traptask_ref}
+      />
+    );
+  }
 
   // Resolve effective sort: URL params override, otherwise fall back to
   // the task's official ranking_metric / direction.
@@ -55,9 +79,9 @@ export default async function TaskLeaderboardPage({
       </section>
 
       <p className="mb-2 text-xs text-[var(--muted)]">
-        {task.ranking_metric === "no_ranking"
-          ? "Classification task — submissions shown newest first, not ranked."
-          : "Each row is a solution's best run on this task. Click a column header to re-sort. Click a solution to see their full submission history."}
+        Each row is a solution&apos;s best run on this task. Click a column
+        header to re-sort. Click a solution to see their full submission
+        history.
       </p>
 
       <p className="text-xs text-[var(--muted)]">
@@ -66,6 +90,57 @@ export default async function TaskLeaderboardPage({
         traptask source →{" "}
         <a href={traptaskHref(task.traptask_ref)} target="_blank" rel="noreferrer">
           <code className="text-[var(--foreground)]">{task.traptask_ref}</code>
+        </a>
+      </p>
+    </div>
+  );
+}
+
+function ProfilesView({
+  entries,
+  taskId,
+  sortKey,
+  sortDir,
+  traptaskRef,
+}: {
+  entries: LeaderboardRow[];
+  taskId: string;
+  sortKey: string | null;
+  sortDir: Direction;
+  traptaskRef: string;
+}) {
+  return (
+    <div>
+      <p className="mb-4 text-xs text-[var(--muted)]">
+        {entries.length}{" "}
+        {entries.length === 1 ? "submission" : "submissions"}
+      </p>
+      <section className="mb-6">
+        {entries.length === 0 ? (
+          <p className="text-[var(--muted)]">No submissions yet.</p>
+        ) : (
+          <ProfileList
+            entries={entries}
+            taskId={taskId}
+            sortKey={sortKey}
+            sortDir={sortDir}
+          />
+        )}
+      </section>
+
+      <p className="mb-2 text-xs text-[var(--muted)]">
+        Classification / self-profile task — not ranked. Columns are
+        auto-derived from each submission&apos;s grader.py output; click
+        any column header to re-sort. Click a solution to see their
+        submission history.
+      </p>
+
+      <p className="text-xs text-[var(--muted)]">
+        How to run this task → <Link href="/docs">docs</Link>
+        {" · "}
+        traptask source →{" "}
+        <a href={traptaskHref(traptaskRef)} target="_blank" rel="noreferrer">
+          <code className="text-[var(--foreground)]">{traptaskRef}</code>
         </a>
       </p>
     </div>

@@ -42,7 +42,10 @@ export default async function TaskLayout({
         <p className="mb-4 max-w-2xl text-[var(--muted)]">{task.description}</p>
       )}
 
-      <TaskTabs taskId={task.id} />
+      <TaskTabs
+        taskId={task.id}
+        isProfiles={task.ranking_metric === "no_ranking"}
+      />
 
       {children}
     </div>

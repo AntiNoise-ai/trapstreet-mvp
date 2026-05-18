@@ -566,6 +566,10 @@ export type LeaderboardRow = {
   // Self-reported metadata from trap.yaml. The UI looks for `repo`
   // (GitHub URL) to render a source-code link next to the solution.
   metadata: Record<string, unknown> | null;
+  // Grader.py's full output (the "rich" per-run metrics like mbti_type,
+  // percentages, bias_stats). Only the ProfileList view actively walks
+  // this for column rendering on no_ranking tasks.
+  grader_metrics: Record<string, unknown> | null;
 };
 
 // What the leaderboard can sort by. Superset of RankingMetric — we also
@@ -655,6 +659,7 @@ export async function leaderboardEntries(filter: {
       latency_ms: runs.latency_ms,
       scored_at: runs.scored_at,
       metadata: runs.metadata,
+      grader_metrics: runs.grader_metrics,
     })
     .from(runs)
     .innerJoin(tasks, eq(tasks.id, runs.task_id))
@@ -706,6 +711,10 @@ export async function leaderboardEntries(filter: {
     metadata:
       r.metadata && typeof r.metadata === "object"
         ? (r.metadata as Record<string, unknown>)
+        : null,
+    grader_metrics:
+      r.grader_metrics && typeof r.grader_metrics === "object"
+        ? (r.grader_metrics as Record<string, unknown>)
         : null,
   }));
 }
