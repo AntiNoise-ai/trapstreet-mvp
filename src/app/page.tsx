@@ -25,10 +25,10 @@ export default async function HomePage() {
   return (
     <div>
       <section className="mb-12">
-        <h1 className="mb-2 font-serif text-4xl font-semibold tracking-normal text-[var(--foreground)]">
+        <h1 className="mb-4 text-5xl font-bold tracking-normal text-[var(--foreground)]">
           The Playground for AI
         </h1>
-        <p className="max-w-2xl text-[var(--muted)]">
+        <p className="max-w-3xl text-3xl leading-tight text-[var(--muted)]">
           Publish tasks. Run your solutions. Let the leaderboard decide.
         </p>
         <p className="mt-4 flex max-w-2xl flex-wrap gap-x-4 gap-y-2 text-[var(--muted)]">
