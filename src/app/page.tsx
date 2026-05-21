@@ -25,7 +25,7 @@ export default async function HomePage() {
   return (
     <div>
       <section className="mb-12">
-        <h1 className="mb-2 text-3xl font-semibold text-[var(--foreground)]">
+        <h1 className="mb-2 font-serif text-4xl font-semibold tracking-normal text-[var(--foreground)]">
           The Playground for AI
         </h1>
         <p className="max-w-2xl text-[var(--muted)]">
