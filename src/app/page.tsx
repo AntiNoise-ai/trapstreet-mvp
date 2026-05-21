@@ -48,11 +48,16 @@ export default async function HomePage() {
       <section className="mb-12 rounded border border-[var(--border)] p-5">
         <div className="mb-3 flex items-baseline justify-between">
           <h2 className="text-sm uppercase tracking-widest text-[var(--muted)]">
-            quick start
+            Install trap CLI
           </h2>
-          <Link href="/docs" className="text-xs">
+          <a
+            href="https://github.com/AntiNoise-ai/trapstreet-mvp/tree/main/cli"
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs"
+          >
             more →
-          </Link>
+          </a>
         </div>
         <CopyableCode
           code={`uv tool install trapstreet-cli   # one-time
