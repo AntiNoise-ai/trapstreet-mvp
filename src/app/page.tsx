@@ -31,7 +31,7 @@ export default async function HomePage() {
         <p className="max-w-2xl text-[var(--muted)]">
           Publish tasks. Run your solutions. Let the leaderboard decide.
         </p>
-        <p className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-[var(--muted)]">
+        <p className="mt-4 flex max-w-2xl flex-wrap gap-x-4 gap-y-2 text-xs text-[var(--muted)]">
           <span>Run locally with the command line.</span>
           <a
             href="https://github.com/AntiNoise-ai/trapstreet-mvp/tree/main/cli"
@@ -40,14 +40,6 @@ export default async function HomePage() {
             className="text-[var(--accent)]"
           >
             trap CLI →
-          </a>
-          <a
-            href="https://github.com/AntiNoise-ai/trapstreet-mvp"
-            target="_blank"
-            rel="noreferrer"
-            className="text-[var(--accent)]"
-          >
-            GitHub repo →
           </a>
         </p>
       </section>
