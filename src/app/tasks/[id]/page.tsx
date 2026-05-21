@@ -8,7 +8,11 @@ import {
 } from "@/lib/queries";
 import type { RankingDirection } from "@/db/schema";
 import { fmtCost, fmtLatency, fmtRelativeTime, fmtScore } from "@/lib/format";
-import { ProfileList, type Direction } from "@/components/profile-list";
+import {
+  ProfileCards,
+  ProfileTypeDistribution,
+  type Direction,
+} from "@/components/profile-list";
 
 // Leaderboard tab. Header + tabs come from layout.tsx. The "Try it" and
 // "Submit your own" how-to-run blocks moved to /docs.
@@ -39,7 +43,6 @@ export default async function TaskLeaderboardPage({
     return (
       <ProfilesView
         entries={entries}
-        taskId={task.id}
         sortKey={sortKey}
         sortDir={sortDir}
         traptaskRef={task.traptask_ref}
@@ -98,41 +101,35 @@ export default async function TaskLeaderboardPage({
 
 function ProfilesView({
   entries,
-  taskId,
   sortKey,
   sortDir,
   traptaskRef,
 }: {
   entries: LeaderboardRow[];
-  taskId: string;
   sortKey: string | null;
   sortDir: Direction;
   traptaskRef: string;
 }) {
   return (
     <div>
-      <p className="mb-4 text-xs text-[var(--muted)]">
-        {entries.length}{" "}
-        {entries.length === 1 ? "submission" : "submissions"}
-      </p>
-      <section className="mb-6">
-        {entries.length === 0 ? (
+      {entries.length === 0 ? (
+        <section className="mb-6">
           <p className="text-[var(--muted)]">No submissions yet.</p>
-        ) : (
-          <ProfileList
+        </section>
+      ) : (
+        <>
+          <ProfileTypeDistribution entries={entries} />
+          <ProfileCards
             entries={entries}
-            taskId={taskId}
             sortKey={sortKey}
             sortDir={sortDir}
           />
-        )}
-      </section>
+        </>
+      )}
 
       <p className="mb-2 text-xs text-[var(--muted)]">
-        Classification / self-profile task — not ranked. Columns are
-        auto-derived from each submission&apos;s grader.py output; click
-        any column header to re-sort. Click a solution to see their
-        submission history.
+        Classification / self-profile task — not ranked. Profile cards
+        are auto-derived from each submission&apos;s grader.py output.
       </p>
 
       <p className="text-xs text-[var(--muted)]">
