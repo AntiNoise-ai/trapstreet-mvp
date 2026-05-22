@@ -40,24 +40,21 @@ export default async function HomePage() {
 
       <section className="mb-24">
         <div className="mb-5">
-          <div>
-            <h2 className="text-3xl font-bold text-[var(--foreground)]">
-              Install trap CLI
-            </h2>
-            <p className="mt-2 max-w-2xl text-base text-[var(--muted)]">
-              Run submissions locally, then publish results to the leaderboard.
+          <h2 className="text-3xl font-bold text-[var(--foreground)]">
+            Install trap CLI
+          </h2>
+          <div className="mt-2 flex flex-wrap items-baseline justify-between gap-3 text-base leading-7">
+            <p className="max-w-2xl text-[var(--muted)]">
+              Run locally, then submit your score to the leaderboard.
             </p>
+            <a
+              href="https://github.com/AntiNoise-ai/trapstreet-mvp/tree/main/cli"
+              target="_blank"
+              rel="noreferrer"
+            >
+              more →
+            </a>
           </div>
-        </div>
-
-        <div className="mb-3 flex justify-end text-base leading-7">
-          <a
-            href="https://github.com/AntiNoise-ai/trapstreet-mvp/tree/main/cli"
-            target="_blank"
-            rel="noreferrer"
-          >
-            more →
-          </a>
         </div>
 
         <CopyableCode
