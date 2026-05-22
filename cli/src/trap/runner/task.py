@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +33,12 @@ class TaskRunner:
         latest = self.task_outputs_dir.parent / "latest"
         if latest.is_symlink():
             latest.unlink()
+        elif latest.exists():
+            # Path exists but isn't a symlink — likely an interrupted prior run
+            # or a sync tool that materialized the symlink as a real directory.
+            # Move it aside (non-destructive) so subsequent runs self-heal.
+            suffix = datetime.now().isoformat(timespec="microseconds")
+            latest.rename(latest.with_name(f"latest.broken.{suffix}"))
         latest.symlink_to(self.task_outputs_dir.name)
 
     def _iter(self, cases: Iterable[TrapTaskCase], *, fail_fast: bool = False) -> Iterator[CaseResult]:
