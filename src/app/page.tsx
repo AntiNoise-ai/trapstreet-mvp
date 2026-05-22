@@ -36,21 +36,10 @@ export default async function HomePage() {
           <br />
           Let the leaderboard decide.
         </p>
-        <p className="mt-6 flex max-w-2xl flex-wrap items-baseline gap-x-4 gap-y-2 text-lg text-[var(--muted)]">
-          <span>Run locally with the command line.</span>
-          <a
-            href="https://github.com/AntiNoise-ai/trapstreet-mvp/tree/main/cli"
-            target="_blank"
-            rel="noreferrer"
-            className="text-[var(--accent)]"
-          >
-            trap CLI →
-          </a>
-        </p>
       </section>
 
       <section className="mb-24">
-        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div className="mb-5">
           <div>
             <h2 className="text-3xl font-bold text-[var(--foreground)]">
               Install trap CLI
@@ -59,16 +48,16 @@ export default async function HomePage() {
               Run submissions locally, then publish results to the leaderboard.
             </p>
           </div>
-          <div className="flex items-baseline gap-4 text-sm">
-            <a
-              href="https://github.com/AntiNoise-ai/trapstreet-mvp/tree/main/cli"
-              target="_blank"
-              rel="noreferrer"
-            >
-              more →
-            </a>
-            <Link href="/docs">Full walkthrough →</Link>
-          </div>
+        </div>
+
+        <div className="mb-3 flex justify-end text-sm">
+          <a
+            href="https://github.com/AntiNoise-ai/trapstreet-mvp/tree/main/cli"
+            target="_blank"
+            rel="noreferrer"
+          >
+            more →
+          </a>
         </div>
 
         <CopyableCode
@@ -89,6 +78,7 @@ tp run && tp submit               # in any task's solution dir`}
             </code>
             .
           </p>
+          <Link href="/docs">Full walkthrough →</Link>
         </div>
       </section>
 
