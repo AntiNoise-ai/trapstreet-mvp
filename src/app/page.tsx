@@ -50,7 +50,7 @@ export default async function HomePage() {
           </div>
         </div>
 
-        <div className="mb-3 flex justify-end text-sm">
+        <div className="mb-3 flex justify-end text-base leading-7">
           <a
             href="https://github.com/AntiNoise-ai/trapstreet-mvp/tree/main/cli"
             target="_blank"

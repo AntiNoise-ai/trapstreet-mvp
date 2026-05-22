@@ -28,9 +28,9 @@ export default function RootLayout({
           <header className="mb-10 flex flex-wrap items-center justify-between gap-4 border-b border-[var(--border)] pb-4">
             <Link
               href="/"
-              className="flex items-center gap-3 text-base font-semibold tracking-wide text-[var(--foreground)] hover:no-underline"
+              className="flex items-center gap-3.5 text-lg font-bold tracking-wide text-[var(--foreground)] hover:no-underline"
             >
-              <MantaLogo className="h-9 w-auto shrink-0" />
+              <MantaLogo className="h-10 w-auto shrink-0" />
               <span>Trapstreet.run</span>
             </Link>
             <nav className="flex flex-wrap items-center gap-5 text-[13px]">
