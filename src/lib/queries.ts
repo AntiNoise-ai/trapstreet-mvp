@@ -740,12 +740,19 @@ export async function leaderboardEntries(filter: {
     .where(and(...where))
     .orderBy(primary, ...tiebreakers);
 
-  // Dedup to best run per (solution, task). Rows are already sorted by
-  // the ranking criteria, so the first row we see for a given key wins.
-  // Postgres has DISTINCT ON for this server-side, but Drizzle doesn't
-  // expose it cleanly; in-memory works fine at v0 scale.
+  // Dedup to best run per (solution, engine, task). Rows are already
+  // sorted by the ranking criteria, so the first row we see for a given
+  // key wins. Postgres has DISTINCT ON for this server-side, but Drizzle
+  // doesn't expose it cleanly; in-memory works fine at v0 scale.
   //
-  // Skip dedup for classification tasks — each submission has
+  // We include the engine identifier in the key so the same solution
+  // tested against multiple engines (claude-3-5-sonnet, claude-3-opus, a
+  // bespoke python extractor, etc.) all appear as comparable rows. Runs
+  // that don't declare an engine collapse together under "" — preserves
+  // the legacy behaviour for solutions that haven't started reporting one
+  // yet. `metadata.model` is accepted as a fallback for backward-compat.
+  //
+  // Skip dedup entirely for classification tasks — each submission has
   // independent value, and "best" isn't defined when nothing is ranked.
   const finalRows =
     filter.all || sort === "no_ranking"
@@ -754,7 +761,18 @@ export async function leaderboardEntries(filter: {
           const seen = new Set<string>();
           const out: typeof rows = [];
           for (const r of rows) {
-            const key = `${r.solution_name}|${r.task_id}`;
+            const md =
+              r.metadata && typeof r.metadata === "object"
+                ? (r.metadata as Record<string, unknown>)
+                : null;
+            const rawEngine =
+              md && typeof md.engine === "string"
+                ? md.engine
+                : md && typeof md.model === "string"
+                  ? md.model
+                  : "";
+            const engine = rawEngine.trim();
+            const key = `${r.solution_name}|${engine}|${r.task_id}`;
             if (seen.has(key)) continue;
             seen.add(key);
             out.push(r);
