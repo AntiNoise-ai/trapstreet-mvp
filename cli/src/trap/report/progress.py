@@ -13,6 +13,7 @@ from rich.progress import (
     TextColumn,
     TimeElapsedColumn,
 )
+from rich.table import Column
 
 from trap.models import CaseResult, TrapTaskCase
 
@@ -33,7 +34,7 @@ class CaseProgress:
         if self._console is not None:
             self._progress = Progress(
                 SpinnerColumn(style="dark_orange"),
-                TextColumn("[bold]{task.description}"),
+                TextColumn("[bold]{task.description}", table_column=Column(width=30, no_wrap=True)),
                 BarColumn(complete_style="dark_orange", finished_style="bright_yellow"),
                 TaskProgressColumn(),
                 MofNCompleteColumn(),
