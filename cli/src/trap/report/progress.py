@@ -32,9 +32,9 @@ class CaseProgress:
     def __enter__(self) -> CaseProgress:
         if self._console is not None:
             self._progress = Progress(
-                SpinnerColumn(style="green"),
+                SpinnerColumn(style="dark_orange"),
                 TextColumn("[bold]{task.description}"),
-                BarColumn(complete_style="green3", finished_style="bright_green"),
+                BarColumn(complete_style="dark_orange", finished_style="bright_yellow"),
                 TaskProgressColumn(),
                 MofNCompleteColumn(),
                 TimeElapsedColumn(),
