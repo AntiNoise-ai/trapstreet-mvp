@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from statistics import median
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from trap.models.config import Task
 from trap.models.results import CaseResult
@@ -37,6 +37,16 @@ class Summary(BaseModel):
     cost_usd_total: float | None = None
     tokens_total: int | None = None
     by_category: dict[str, float] | None = None
+
+    @field_validator("latency_ms_total", "latency_ms_median", "latency_ms_p95", mode="before")
+    @classmethod
+    def _round_latency_floats(cls, v: Any) -> Any:
+        # Graders commonly emit latency as fractional ms (e.g. 83.8). The
+        # wire format contracts these fields as int — round on the way in
+        # so we accept otherwise-valid grader output without crashing.
+        if isinstance(v, float):
+            return round(v)
+        return v
 
 
 class ReportData(BaseModel):
@@ -95,13 +105,9 @@ def _coerce_or_auto_summary(grader_metrics: Any, cases: tuple[CaseResult, ...]) 
         auto = _auto_summary_dict(cases)
         for k, v in auto.items():
             filled.setdefault(k, v)
-        # Graders commonly emit latency as rounded floats (e.g. 83.8 ms).
-        # Summary contracts these fields as ints — coerce here so we don't
-        # crash on otherwise-valid grader output.
-        for key in ("latency_ms_total", "latency_ms_median", "latency_ms_p95"):
-            v = filled.get(key)
-            if isinstance(v, float):
-                filled[key] = int(round(v))
+        # Float-to-int rounding for latency_ms_* fields is enforced by the
+        # Summary model itself (see _round_latency_floats), so callers can
+        # pass float-valued grader output without pre-coercing.
         return Summary.model_validate(filled)
     return Summary.model_validate(_auto_summary_dict(cases))
 
