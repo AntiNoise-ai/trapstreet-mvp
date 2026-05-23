@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+import time
 from collections import Counter
 
 text = sys.stdin.read()
@@ -18,6 +19,8 @@ if not case_sensitive:
     words = [w.lower() for w in words]
 
 counts = Counter(words)
+
+time.sleep(1)
 
 with open(outputs["frequencies.json"], "w") as f:
     json.dump(dict(counts), f)
