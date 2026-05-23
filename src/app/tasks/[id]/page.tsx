@@ -219,6 +219,7 @@ function Leaderboard({
         <tr>
           <th>#</th>
           <th>solution</th>
+          <th>engine</th>
           {COLUMNS.map((col) => (
             <SortHeader
               key={col.key}
@@ -240,6 +241,11 @@ function Leaderboard({
                   display name and the source-repo link sit below. */}
               <Link href={`/solutions/${e.solution_id}`}>{e.solution_name}</Link>
               <SolutionSubline e={e} />
+            </td>
+            <td className="font-mono text-[var(--muted)]">
+              {extractEngine(e.metadata) ?? (
+                <span className="text-[var(--border)]">—</span>
+              )}
             </td>
             <td
               className={
@@ -354,6 +360,22 @@ function SolutionSubline({ e }: { e: LeaderboardRow }) {
       )}
     </div>
   );
+}
+
+// Pull the engine identifier out of self-reported run metadata. Solutions
+// declare it in trap.yaml's `metadata:` block (`engine: claude-3-5-sonnet`,
+// or `engine: my-python-extractor` when there's no LLM in the loop).
+// Falls back to `metadata.model` for backward-compat with solutions that
+// adopted the older field name before "engine" existed.
+//
+// Rendered as its own column on the leaderboard so multiple engine
+// variants of the same solution are visually distinguishable side-by-side.
+function extractEngine(metadata: Record<string, unknown> | null): string | null {
+  if (!metadata) return null;
+  const raw = metadata.engine ?? metadata.model;
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  return trimmed || null;
 }
 
 // Pull a github repo URL out of self-reported run metadata. Accepts the
