@@ -337,9 +337,14 @@ function SortHeader({
 
 function SolutionSubline({ e }: { e: LeaderboardRow }) {
   const repo = extractRepo(e.metadata);
-  if (!e.user_name && !repo) return null;
+  const model = extractModel(e.metadata);
+  if (!e.user_name && !repo && !model) return null;
   return (
     <div className="text-[11px] font-normal text-[var(--muted)]">
+      {model && (
+        <span className="font-mono text-[var(--foreground)]">{model}</span>
+      )}
+      {model && (e.user_name || repo) && <span className="px-1">·</span>}
       {e.user_name && <>by {e.user_name}</>}
       {e.user_name && repo && <span className="px-1">·</span>}
       {repo && (
@@ -354,6 +359,18 @@ function SolutionSubline({ e }: { e: LeaderboardRow }) {
       )}
     </div>
   );
+}
+
+// Pull the model identifier out of self-reported run metadata. Solutions
+// declare it in trap.yaml's `metadata:` block (`model: claude-3-5-sonnet`).
+// Surfaced in the leaderboard subline so multiple model variants of the
+// same agent are visually distinguishable side-by-side.
+function extractModel(metadata: Record<string, unknown> | null): string | null {
+  if (!metadata) return null;
+  const raw = metadata.model;
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  return trimmed || null;
 }
 
 // Pull a github repo URL out of self-reported run metadata. Accepts the
