@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -41,22 +41,40 @@ class TaskRunner:
             latest.rename(latest.with_name(f"latest.broken.{suffix}"))
         latest.symlink_to(self.task_outputs_dir.name)
 
-    def _iter(self, cases: Iterable[TrapTaskCase], *, fail_fast: bool = False) -> Iterator[CaseResult]:
+    def _iter(
+        self,
+        cases: Iterable[TrapTaskCase],
+        *,
+        fail_fast: bool = False,
+        on_case_start: Callable[[str], None] | None = None,
+        on_case_done: Callable[[CaseResult], None] | None = None,
+    ) -> Iterator[CaseResult]:
         # TODO: parallelize case runs, but judge cases sequentially in the same order as case runs
         for case in cases:
+            if on_case_start is not None:
+                on_case_start(case.id)
             result = CaseRunner(self, case.id).run()
             if self.traptask_obj.judge is not None:
                 metrics = JudgeRunner(self, case.id).run()
                 result = result.model_copy(update={"metrics": metrics})
+            if on_case_done is not None:
+                on_case_done(result)
             yield result
             if fail_fast and result.exit_code != 0:
                 break
 
     def run(
-        self, cases: Iterable[TrapTaskCase], *, fail_fast: bool = False
+        self,
+        cases: Iterable[TrapTaskCase],
+        *,
+        fail_fast: bool = False,
+        on_case_start: Callable[[str], None] | None = None,
+        on_case_done: Callable[[CaseResult], None] | None = None,
     ) -> tuple[tuple[CaseResult, ...], Any]:
 
-        case_results = tuple(self._iter(cases, fail_fast=fail_fast))
+        case_results = tuple(
+            self._iter(cases, fail_fast=fail_fast, on_case_start=on_case_start, on_case_done=on_case_done)
+        )
 
         grader_metrics = None
         if self.traptask_obj.grader is not None:

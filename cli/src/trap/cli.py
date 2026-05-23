@@ -21,6 +21,7 @@ from rich.console import Console
 from trap.git_meta import detect_metadata
 from trap.loader import TrapLoader, TrapTaskLoader
 from trap.report import OutputFormat, ReportSaver, renderer_factory
+from trap.report.progress import CaseProgress
 from trap.runner import TaskRunner
 
 app = typer.Typer(help="AI prompt / agent / workflow / testing framework.")
@@ -99,7 +100,14 @@ def run(
         traptask_dir=task_yaml_loader.task_dir,
         task_outputs_dir=trap_run_dir,
     )
-    case_results, grader_metrics = runner.run(active_cases, fail_fast=fail_fast)
+    prog_console = console if output == OutputFormat.rich else None
+    with CaseProgress(active_cases, console=prog_console) as prog:
+        case_results, grader_metrics = runner.run(
+            active_cases,
+            fail_fast=fail_fast,
+            on_case_start=prog.on_case_start,
+            on_case_done=prog.on_case_done,
+        )
     finished_at = datetime.now()
 
     # Sniff the solution dir for a git remote so the leaderboard row
