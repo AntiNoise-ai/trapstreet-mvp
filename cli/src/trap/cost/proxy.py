@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 import http.server
-import re
 import socketserver
 import threading
 from functools import cached_property
 from typing import TYPE_CHECKING
 
 import httpx
-from tokencost import TOKEN_COSTS as _TOKEN_COSTS  # type: ignore[import-untyped]
 
+from trap.cost.calculator import calculate_call_cost as _calc_cost
 from trap.cost.providers import _ProviderRegistry
 from trap.models.cost import CaseCost, ModelCost
 
@@ -66,16 +65,7 @@ class CostProxy:
     ) -> None:
         if not (prompt_tokens or completion_tokens):
             return
-        call_cost = 0.0
-        if model:
-            # tokencost keys model names without the release-date suffix
-            # (e.g. "claude-3-5-sonnet-20241022" → "claude-3-5-sonnet"), so we
-            # fall back to the stripped name when the full name isn't in the table.
-            stripped = re.sub(r"-\d{8}$", "", model)
-            mc = _TOKEN_COSTS.get(model) or _TOKEN_COSTS.get(stripped, {})
-            in_rate = float(mc.get("input_cost_per_token", 0) or 0)
-            out_rate = float(mc.get("output_cost_per_token", 0) or 0)
-            call_cost = prompt_tokens * in_rate + completion_tokens * out_rate
+        call_cost = _calc_cost(prompt_tokens, completion_tokens, model) if model else 0.0
         with self._lock:
             key = (provider, model)
             entry = self._cost_buckets.get(key)
