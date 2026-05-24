@@ -5,6 +5,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from trap.models.cost import CaseCost
+
 
 class CaseResult(BaseModel):
     case_id: str
@@ -13,3 +15,4 @@ class CaseResult(BaseModel):
     # any JSON-serializable value; trap does not interpret this, grader does
     metrics: Any
     skipped: bool = False
+    cost: CaseCost | None = None

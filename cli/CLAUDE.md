@@ -86,6 +86,87 @@ seam for future async or multi-threaded case execution — e.g. replacing the fo
 
 ---
 
+## LLM Observability
+
+Two distinct layers, both non-invasive (no changes to solution code):
+
+### `cost` — token & spend tracking (implemented)
+
+Intercepts the solution's LLM API calls via a local HTTP reverse proxy injected through env vars
+(`ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL`, etc.). Parses token counts and computes cost per case.
+
+**Mechanism**: `CostProxy` creates one `_ProxyServer` per active provider, each bound to a random
+localhost port (port `0` → OS assigns). Env vars are redirected to point at these proxy ports before
+the subprocess starts. The proxy forwards every request to the real API over HTTPS, tees the response
+to extract `usage`, then shuts down after the subprocess exits. No TLS interception needed.
+
+**Per-provider port design**: each provider gets its own port, so no per-request provider detection
+is needed — `_ProxyHandler` always knows which provider it's serving from `self.server.provider`.
+
+**Auto-detection**: activates when an API key env var is present (`ANTHROPIC_API_KEY`,
+`OPENAI_API_KEY`, etc.), or unconditionally (`always_intercept=True`) for OAuth-based tools like
+Claude Code that set no key env var but still honour `ANTHROPIC_BASE_URL`. Disable with
+`cost: {enabled: false}` in trap.yaml.
+
+**Provider support**:
+
+| Provider | Status | Notes |
+|---|---|---|
+| Anthropic API | Full | SDK auto-reads `ANTHROPIC_BASE_URL` |
+| OpenAI | Full | SDK auto-reads `OPENAI_BASE_URL` |
+| Claude Code (`claude -p`) | Full | OAuth; `always_intercept=True` |
+| Groq | Full | SDK auto-reads `GROQ_BASE_URL` |
+| Mistral | Limited | SDK does **not** auto-read `MISTRAL_BASE_URL`; solution must pass `server_url=os.environ.get("MISTRAL_BASE_URL")` explicitly |
+| AWS Bedrock | None | SDK-level auth (SigV4); no redirectable base URL |
+| Google Vertex AI | None | SDK-level auth (Google OAuth); no redirectable base URL |
+
+**Provider upstream URL rules** — SDKs differ in whether they include a path prefix when the base
+URL is overridden. The proxy upstream in `_ProviderConfig` must compensate:
+- Anthropic SDK: includes `/v1` in the path → upstream `https://api.anthropic.com` (no suffix)
+- OpenAI SDK: drops `/v1` from the path when `base_url` is overridden → upstream `https://api.openai.com/v1`
+- Mistral SDK: includes `/v1` in the path → upstream `https://api.mistral.ai` (no suffix)
+- Groq SDK (openai-based): drops path prefix → upstream `https://api.groq.com/openai/v1`
+
+**Multi-provider / multi-model design**: a single case can call multiple providers and multiple
+models. The data model tracks them separately:
+- `ModelCost` — per-(provider, model) bucket: `prompt_tokens`, `completion_tokens`, `cost_usd`,
+  `calls`
+- `CaseCost.by_model: list[ModelCost]` — all buckets for one case run
+- `CaseCost.prompt_tokens / .completion_tokens / .cost_usd / .calls` — computed aggregates over
+  all buckets
+- `CaseResult.cost: CaseCost | None` — attached to each case result
+- `Summary.cost_usd_total / .tokens_total` — aggregated across all cases in the run
+
+**Cost pricing**: uses `tokencost` library (required dependency). If a model is absent from the
+pricing table (e.g. Mistral models), token counts are tracked but `cost_usd` is `0.0`.
+
+**Known limitation** — *Rich table*: the terminal table shows per-case aggregates only
+(`prompt_tok`, `compl_tok`, `cost`). Per-model breakdown is available in `report.json`
+(`cost.by_model`) but not rendered in the terminal output.
+
+**trap.yaml**:
+```yaml
+tasks:
+  test:
+    cmd: uv run python solution.py
+    traptask: ../task
+    cost:
+      enabled: false   # omit to auto-detect from env
+```
+
+### `tracing` — internal LLM call logs (planned)
+
+Will record per-call details: prompt content, completion content, latency, cache hits, chain steps.
+Shares the same proxy mechanism as `cost`. Not yet implemented.
+
+**trap.yaml** (future):
+```yaml
+    tracing:
+      enabled: true
+```
+
+---
+
 ## Rust Rewrite Constraints
 
 These constraints keep future Rust migration cheap — do not violate them:

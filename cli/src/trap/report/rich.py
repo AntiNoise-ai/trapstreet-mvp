@@ -41,6 +41,14 @@ class RichRenderer(BaseRenderer):
         return escape(str(value))
 
     @staticmethod
+    def _render_summary_value(key: str, value: object) -> str:
+        if key == "cost_usd_total" and isinstance(value, float):
+            return f"${value:.4f}"
+        if key == "tokens_total" and isinstance(value, int):
+            return f"{value:,}"
+        return RichRenderer._render_metric_cell(value)
+
+    @staticmethod
     def _render_status(result: CaseResult) -> tuple[str, str]:
         match result:
             case CaseResult(skipped=True):
@@ -50,20 +58,40 @@ class RichRenderer(BaseRenderer):
             case _:
                 return "FAIL", "bold red"
 
+    @staticmethod
+    def _render_cost(usd: float) -> str:
+        if usd <= 0:
+            return "[dim]—[/dim]"
+        if usd < 0.001:
+            return f"[dim]${usd:.5f}[/dim]"
+        return f"[dim]${usd:.4f}[/dim]"
+
     def _build_table(self, data: ReportData) -> Table:
         metrics_keys = self._get_metrics_keys(data)
+        has_cost = any(c.cost is not None for c in data.cases)
         table = Table(box=box.ROUNDED, show_header=True, header_style="bold", expand=True)
         table.add_column("case")
         table.add_column("status", justify="center")
         table.add_column("time", justify="right", style="dim")
         for key in metrics_keys:
             table.add_column(f"# {escape(key)}", justify="right", header_style="bold cyan")
+        if has_cost:
+            table.add_column("prompt_tok", justify="right", style="dim")
+            table.add_column("compl_tok", justify="right", style="dim")
+            table.add_column("cost", justify="right")
         for result in data.cases:
             label, style = self._render_status(result)
             row = [escape(result.case_id), f"[{style}]{label}[/{style}]", f"{result.duration:.3f}s"]
             for key in metrics_keys:
                 value = result.metrics.get(key) if result.metrics else None
                 row.append(self._render_metric_cell(value))
+            if has_cost:
+                if result.cost:
+                    row.append(str(result.cost.prompt_tokens))
+                    row.append(str(result.cost.completion_tokens))
+                    row.append(self._render_cost(result.cost.cost_usd))
+                else:
+                    row.extend(["[dim]—[/dim]", "[dim]—[/dim]", "[dim]—[/dim]"])
             table.add_row(*row)
         return table
 
@@ -92,7 +120,7 @@ class RichRenderer(BaseRenderer):
         for k in ("n_passed", "n_total", "n_skipped"):
             summary_dump.pop(k, None)
         if summary_dump:
-            parts = [self._render_metric_cell(v) + f" {escape(k)}" for k, v in summary_dump.items()]
+            parts = [self._render_summary_value(k, v) + f" {escape(k)}" for k, v in summary_dump.items()]
             rows.append(("summary", Text.from_markup("  ".join(parts))))
 
         grid = Table.grid(padding=(0, 2))

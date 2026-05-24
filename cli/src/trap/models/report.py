@@ -122,7 +122,7 @@ def _auto_summary_dict(cases: tuple[CaseResult, ...]) -> dict[str, Any]:
     n_skipped = len(cases) - len(scored)
     scores: list[float] = []
     durations_ms: list[int] = []
-    costs: list[float] = []
+    grader_costs: list[float] = []
     for c in scored:
         m = c.metrics if isinstance(c.metrics, dict) else {}
         s = m.get("score")
@@ -130,9 +130,9 @@ def _auto_summary_dict(cases: tuple[CaseResult, ...]) -> dict[str, Any]:
             scores.append(float(s))
         if c.duration is not None:
             durations_ms.append(round(c.duration * 1000))
-        cost = m.get("usd_cost")
-        if isinstance(cost, (int, float)):
-            costs.append(float(cost))
+        grader_cost = m.get("usd_cost")
+        if isinstance(grader_cost, (int, float)):
+            grader_costs.append(float(grader_cost))
 
     avg = sum(scores) / len(scores) if scores else 0.0
     n_passed = sum(1 for s in scores if s == 1.0)
@@ -150,6 +150,14 @@ def _auto_summary_dict(cases: tuple[CaseResult, ...]) -> dict[str, Any]:
         if len(durations_ms) > 1:
             sorted_d = sorted(durations_ms)
             out["latency_ms_p95"] = sorted_d[int(0.95 * (len(sorted_d) - 1))]
-    if costs:
-        out["cost_usd_total"] = round(sum(costs), 6)
+    if grader_costs:
+        out["cost_usd_total"] = round(sum(grader_costs), 6)
+    # Proxy-intercepted cost data takes priority over grader-reported cost.
+    proxy_cases = [c for c in scored if c.cost is not None]
+    if proxy_cases:
+        out["cost_usd_total"] = round(sum(c.cost.cost_usd for c in proxy_cases), 6)  # type: ignore[union-attr]
+        out["tokens_total"] = sum(
+            c.cost.prompt_tokens + c.cost.completion_tokens
+            for c in proxy_cases  # type: ignore[union-attr]
+        )
     return out

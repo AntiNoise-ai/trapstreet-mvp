@@ -46,3 +46,6 @@ expected/{case_id}/                                                             
 
 **I want to create a benchmark or evaluation task:**
 → [Writing a task](guides/writing-task.md)
+
+**I want to track token usage and LLM spend per case:**
+→ [Cost tracking](guides/cost-tracking.md)

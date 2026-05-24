@@ -1,0 +1,10 @@
+tasks:
+  test:
+    cmd: sh -c 'set -a && . .env && set +a && uv run solution.py'
+    traptask: ../task
+    inputs:
+      files:
+        - question.txt
+    metadata:
+      provider: anthropic
+      model: claude-haiku-4-5-20251001

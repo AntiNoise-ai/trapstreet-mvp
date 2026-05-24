@@ -77,6 +77,40 @@ trap creates the output paths and injects them via `OUTPUTS`. The solution write
 
 ---
 
+---
+
+## Cost tracking
+
+If your solution calls an LLM API, trap can measure token usage and spend per case with no changes to your solution code.
+
+Cost tracking activates automatically when a supported API key env var is set (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`). Results appear in the terminal table and in `report.json`.
+
+```
+│ capital_of_france  │  PASS  │ 3.4s │ ✓ │ 100% │  28 │  14 │ $0.000007 │
+```
+
+**Mistral requires one extra line** — the Mistral SDK does not auto-read the base URL from env vars:
+
+```python
+client = Mistral(
+    api_key=os.environ.get("MISTRAL_API_KEY"),
+    server_url=os.environ.get("MISTRAL_BASE_URL"),   # add this line
+)
+```
+
+To disable cost tracking for a task:
+
+```yaml
+tasks:
+  test:
+    cost:
+      enabled: false
+```
+
+→ [Full cost tracking guide](cost-tracking.md)
+
+---
+
 ## Full trap.yaml reference
 
 See [trap.yaml reference](../reference/trap-yaml.md) for all available fields.

@@ -15,6 +15,10 @@ class InputsBinding(BaseModel):
     # TODO: env: dict[str, str] = {}  — inject inputs as environment variables
 
 
+class CostConfig(BaseModel):
+    enabled: bool = True
+
+
 class Task(BaseModel):
     name: str = ""
     description: str = ""
@@ -40,3 +44,8 @@ class Task(BaseModel):
     # serialised name like `<user-slug>-<n>`, so each submit lands as
     # its own row on the leaderboard.
     solution: str | None = None
+    cost: CostConfig | None = None  # None = auto-detect from env; set enabled: false to disable
+
+    @property
+    def cost_enabled(self) -> bool:
+        return self.cost is None or self.cost.enabled

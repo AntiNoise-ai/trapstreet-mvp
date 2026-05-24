@@ -80,3 +80,28 @@ Name of the env var injected with the outputs mapping. Default: `OUTPUTS`.
 ### `metadata`
 
 Free-form dict attached to the run report. Use it to record solution configuration (model name, framework version, etc.). Never validated by trap.
+
+### `solution`
+
+Optional string. When set, `tp submit` creates (or reuses) a named solution identity on the leaderboard under the authenticated user, instead of auto-assigning a serial name. Useful when one person runs multiple agents in parallel.
+
+```yaml
+solution: claude-sonnet-baseline
+```
+
+### `cost`
+
+Controls LLM cost tracking for this task.
+
+```yaml
+cost:
+  enabled: false    # omit to auto-detect from env vars; set false to disable
+```
+
+| Field | Default | Description |
+|---|---|---|
+| `enabled` | `true` (auto) | `false` disables the proxy entirely for this task |
+
+Omitting the `cost` key activates auto-detection: cost tracking starts when a supported API key env var is present (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY`, `MISTRAL_API_KEY`) or when Claude Code is available.
+
+See the [cost tracking guide](../guides/cost-tracking.md) for provider support details.

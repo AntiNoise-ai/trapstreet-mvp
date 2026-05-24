@@ -9,7 +9,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from trap.cost import CostProxy
 from trap.models import CaseResult
+from trap.models.cost import CaseCost
 
 if TYPE_CHECKING:
     from trap.runner.task import TaskRunner
@@ -61,24 +63,46 @@ class CaseRunner:
         self.case_outputs_dir.mkdir(parents=True, exist_ok=True)
 
         task = self.runner.task
+
+        proxy: CostProxy | None = None
+        proxy_env: dict[str, str] = {}
+        if task.cost_enabled:
+            try:
+                proxy = CostProxy()
+                proxy.start()
+                proxy_env = proxy.env_overrides
+            except Exception:
+                pass
+
+        case_cost: CaseCost | None = None
         t0 = time.monotonic()
-        proc = subprocess.run(
-            shlex.split(task.cmd),
-            input=self._stdin,
-            capture_output=True,
-            text=True,
-            cwd=self.runner.trap_dir,
-            timeout=task.timeout,
-            env={
-                **os.environ,
-                task.inputs_envvar: self._inputs_envvar,
-                task.outputs_envvar: self._outputs_envvar,
-            },
-        )
-        duration = time.monotonic() - t0
+        try:
+            proc = subprocess.run(
+                shlex.split(task.cmd),
+                input=self._stdin,
+                capture_output=True,
+                text=True,
+                cwd=self.runner.trap_dir,
+                timeout=task.timeout,
+                env={
+                    **os.environ,
+                    task.inputs_envvar: self._inputs_envvar,
+                    task.outputs_envvar: self._outputs_envvar,
+                    **proxy_env,
+                },
+            )
+            duration = time.monotonic() - t0
+        finally:
+            if proxy is not None:
+                partial = proxy.stop()
+                if partial.calls > 0:
+                    case_cost = partial
+
         self.case_outputs_paths.stdout.write_text(proc.stdout)
         self.case_outputs_paths.stderr.write_text(proc.stderr)
         self.case_outputs_paths.meta.write_text(
             json.dumps({"exit_code": proc.returncode, "duration": duration})
         )
-        return CaseResult(case_id=self.case_id, exit_code=proc.returncode, duration=duration, metrics=None)
+        return CaseResult(
+            case_id=self.case_id, exit_code=proc.returncode, duration=duration, metrics=None, cost=case_cost
+        )

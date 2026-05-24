@@ -2,36 +2,29 @@
 
 ## 进行中
 
-### 非侵入式 cost/token 监控（per-case 粒度）
+### `cost` 模块 — per-case token & spend 追踪
 
-**方案**：本地 HTTP 反向代理（stdlib server + httpx 转发），通过环境变量注入拦截子进程的 LLM API 调用，不修改 solution 代码。
+**方案**：本地 HTTP 反向代理（stdlib server + httpx 转发），通过环境变量注入拦截子进程的 LLM API 调用，不修改 solution 代码。详见 CLAUDE.md "LLM Observability" 章节。
 
-**技术栈**：
-- 代理服务器：`socketserver.ThreadingMixIn + TCPServer`（daemon 线程）
-- 转发客户端：`httpx`（streaming tee）
-- Cost 计算：`tokencost`（`TOKEN_COSTS` dict，400+ 模型）
+**技术栈**：`socketserver.ThreadingMixIn + TCPServer`（daemon 线程）+ `httpx`（streaming tee）+ `tokencost`（cost 计算）
 
-**自动探测**：检测到 `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GROQ_API_KEY` / `MISTRAL_API_KEY` 时自动启用；`ANTHROPIC_BASE_URL` 若已设置（如指向 Ollama）则以其为上游。用户可在 `trap.yaml` 加 `monitor: {enabled: false}` 关闭。
-
-**Provider 覆盖**：Anthropic、OpenAI、Groq、Mistral，以及所有 OpenAI 兼容接口（DeepSeek、Kimi、豆包、Qwen 等）；Ollama/vLLM/LM Studio 等本地模型服务器也覆盖。不支持：AWS Bedrock（SigV4）、Google Vertex AI（GCP SDK）、讯飞星火（WebSocket）。
-
-**Token 解析**：
-- Anthropic 非流式：`usage.input_tokens / output_tokens`
-- Anthropic 流式 SSE：`message_start` + `message_delta` 事件
-- OpenAI 非流式：`usage.prompt_tokens / completion_tokens`
+**Token 解析**（统一字段名 `prompt_tokens` / `completion_tokens`）：
+- Anthropic 非流式：`usage.input_tokens` → `prompt_tokens`；`usage.output_tokens` → `completion_tokens`
+- Anthropic 流式 SSE：`message_start.usage.input_tokens` + `message_delta.usage.output_tokens`
+- OpenAI 非流式：`usage.prompt_tokens / completion_tokens`（原生同名）
 - OpenAI 流式：需 solution 开 `stream_options.include_usage=True`，否则静默跳过
 
 **数据模型变更**：
-- 新增 `CaseUsage` 模型（`models/usage.py`）
-- `CaseResult` 新增 `usage: CaseUsage | None = None`（向后兼容）
-- `Task` 新增 `monitor: MonitorConfig | None = None`
-- `_auto_summary_dict()` 新增 `tokens_total` 聚合，`cost_usd_total` 优先读 `usage`
-- `RichRenderer` case 表格加 `in_tok` / `out_tok` / `cost` 列
+- 新增 `CaseCost` 模型（`models/cost.py`）：`prompt_tokens`、`completion_tokens`、`cost_usd`、`calls`、`model`、`provider`
+- `CaseResult` 新增 `cost: CaseCost | None = None`（向后兼容）
+- `Task` 新增 `cost: CostConfig | None = None`（`enabled: bool = True`）
+- `_auto_summary_dict()` 新增 `tokens_total` 聚合，`cost_usd_total` 优先读 `CaseCost`
+- `RichRenderer` case 表格加 `prompt_tok` / `compl_tok` / `cost` 列
 
 **新增文件**：
-- `src/trap/models/usage.py`
-- `src/trap/monitor/__init__.py`
-- `src/trap/monitor/proxy.py`
+- `src/trap/models/cost.py`
+- `src/trap/cost/__init__.py`
+- `src/trap/cost/proxy.py`
 
 **新增依赖**：`httpx>=0.27`、`tokencost`
 
@@ -48,4 +41,5 @@
 
 ## 待定（TBD）
 
+- [ ] `tracing` 模块 — 记录每次 LLM 调用的 prompt/completion 内容、latency、cache hits、调用链；与 `cost` 共享同一 HTTP 代理机制，新增 collector 即可
 - [ ] 多步 pipeline（steps 编排）

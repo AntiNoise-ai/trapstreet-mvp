@@ -1,0 +1,10 @@
+tasks:
+  test:
+    cmd: uv run solution.py
+    traptask: ../task
+    inputs:
+      files:
+        - question.txt
+    metadata:
+      provider: anthropic
+      tool: claude-code
