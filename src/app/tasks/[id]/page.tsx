@@ -193,7 +193,11 @@ interface SortableColumn {
 
 const COLUMNS: SortableColumn[] = [
   { label: "score", key: "total_score" },
-  { label: "pass", key: "passed" },
+  // "pass" column removed — the cases column (e.g. "17/19") already conveys
+  // whether the run crossed the threshold, and a dedicated ✓/✗ cell crowded
+  // the row without adding information. `passed` is still a valid SortKey;
+  // server-side sorting via ?sort=passed still works for anyone with a
+  // bookmarked URL.
   { label: "cases", key: "cases_passed" },
   { label: "latency", key: "latency_ms" },
   { label: "cost", key: "cost_usd" },
@@ -253,15 +257,6 @@ function Leaderboard({
               }
             >
               {fmtScore(e.total_score)}
-            </td>
-            <td>
-              {e.passed === true ? (
-                <span className="text-[var(--accent)]">✓</span>
-              ) : e.passed === false ? (
-                <span className="text-red-400">✗</span>
-              ) : (
-                <span className="text-[var(--muted)]">—</span>
-              )}
             </td>
             <td className="text-[var(--muted)]">
               {e.cases_passed}
