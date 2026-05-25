@@ -197,9 +197,12 @@ export type SubjectType = "task" | "track" | "run" | "solution";
 export const threads = pgTable("threads", {
   id: text("id").primaryKey(),
   title: text("title").notNull(),
+  // Forum is human-to-human discussion: author is a user, not a
+  // solution. Posting requires an authenticated session, not an
+  // api_key.
   author_id: text("author_id")
     .notNull()
-    .references(() => solutions.id, { onDelete: "cascade" }),
+    .references(() => users.id, { onDelete: "cascade" }),
   subject_type: text("subject_type").$type<SubjectType>().notNull(),
   subject_id: text("subject_id").notNull(),
   comment_count: integer("comment_count").notNull().default(0),
@@ -218,7 +221,7 @@ export const comments = pgTable("comments", {
     .references(() => threads.id, { onDelete: "cascade" }),
   author_id: text("author_id")
     .notNull()
-    .references(() => solutions.id, { onDelete: "cascade" }),
+    .references(() => users.id, { onDelete: "cascade" }),
   body: text("body").notNull(),
   created_at: timestamp("created_at", { withTimezone: true })
     .notNull()

@@ -859,23 +859,67 @@ export async function listRunsBySolution(solutionId: string) {
 }
 
 // -----------------------------------------------------------------------------
-// threads + comments — unchanged from prior version
+// threads + comments
+//
+// Authorship is per-user (not per-solution) — forum is human discussion.
+// Posting goes through session auth (no api_key needed). See migration
+// scripts/migrate-forum-authors-to-users.ts for the FK flip.
 
-export async function listThreads(filter: {
+export interface ThreadListRow {
+  id: string;
+  title: string;
+  author_id: string;
+  author_name: string | null;
+  subject_type: string;
+  subject_id: string;
+  comment_count: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+async function listThreadsInternal(filter: {
   subject_type?: string;
   subject_id?: string;
-}) {
+}): Promise<ThreadListRow[]> {
   const where = [];
   if (filter.subject_type)
     where.push(eq(threads.subject_type, filter.subject_type as never));
   if (filter.subject_id)
     where.push(eq(threads.subject_id, filter.subject_id));
-  const q = db.select().from(threads);
-  const rows =
-    where.length > 0
-      ? await q.where(and(...where)).orderBy(desc(threads.updated_at))
-      : await q.orderBy(desc(threads.updated_at));
-  return rows;
+  const q = db
+    .select({
+      id: threads.id,
+      title: threads.title,
+      author_id: threads.author_id,
+      author_name: users.name,
+      subject_type: threads.subject_type,
+      subject_id: threads.subject_id,
+      comment_count: threads.comment_count,
+      created_at: threads.created_at,
+      updated_at: threads.updated_at,
+    })
+    .from(threads)
+    .leftJoin(users, eq(users.id, threads.author_id));
+  return where.length > 0
+    ? await q.where(and(...where)).orderBy(desc(threads.updated_at))
+    : await q.orderBy(desc(threads.updated_at));
+}
+
+export async function listThreads(filter: {
+  subject_type?: string;
+  subject_id?: string;
+}): Promise<ThreadListRow[]> {
+  return listThreadsInternal(filter);
+}
+
+export async function listThreadsForSubject(
+  subjectType: string,
+  subjectId: string,
+): Promise<ThreadListRow[]> {
+  return listThreadsInternal({
+    subject_type: subjectType,
+    subject_id: subjectId,
+  });
 }
 
 export async function getThread(id: string) {
@@ -883,16 +927,29 @@ export async function getThread(id: string) {
   return rows[0] ?? null;
 }
 
-export async function listComments(threadId: string) {
-  return db
-    .select()
-    .from(comments)
-    .where(eq(comments.thread_id, threadId))
-    .orderBy(asc(comments.created_at));
+export interface CommentRow {
+  id: string;
+  thread_id: string;
+  author_id: string;
+  author_name: string | null;
+  body: string;
+  created_at: Date;
 }
 
-export async function listThreadsForSubject(subjectType: string, subjectId: string) {
-  return listThreads({ subject_type: subjectType, subject_id: subjectId });
+export async function listComments(threadId: string): Promise<CommentRow[]> {
+  return db
+    .select({
+      id: comments.id,
+      thread_id: comments.thread_id,
+      author_id: comments.author_id,
+      author_name: users.name,
+      body: comments.body,
+      created_at: comments.created_at,
+    })
+    .from(comments)
+    .leftJoin(users, eq(users.id, comments.author_id))
+    .where(eq(comments.thread_id, threadId))
+    .orderBy(asc(comments.created_at));
 }
 
 export async function createThread(input: {
@@ -954,6 +1011,59 @@ export async function createComment(input: {
     })
     .where(eq(threads.id, input.thread_id));
   return row;
+}
+
+// Deletion. Caller is responsible for verifying the actor has the right
+// to delete (own author, or task creator for threads attached to their
+// task). These are raw deletes.
+export async function deleteThread(id: string): Promise<void> {
+  // comments cascade via FK on thread_id
+  await db.delete(threads).where(eq(threads.id, id));
+}
+
+export async function deleteComment(id: string): Promise<void> {
+  const [row] = await db
+    .select({ thread_id: comments.thread_id })
+    .from(comments)
+    .where(eq(comments.id, id))
+    .limit(1);
+  if (!row) return;
+  await db.delete(comments).where(eq(comments.id, id));
+  // Decrement comment_count; don't touch updated_at on delete (a delete
+  // shouldn't bump the thread to the top of the list).
+  await db
+    .update(threads)
+    .set({ comment_count: raw`GREATEST(${threads.comment_count} - 1, 0)` })
+    .where(eq(threads.id, row.thread_id));
+}
+
+export async function getComment(id: string) {
+  const rows = await db
+    .select()
+    .from(comments)
+    .where(eq(comments.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+// Per-task forum stats — thread count and total comments across all
+// threads on the task. Used in the forum tab header.
+export async function taskForumStats(
+  taskId: string,
+): Promise<{ thread_count: number; comment_total: number }> {
+  const rows = await db
+    .select({
+      thread_count: raw<number>`count(*)::int`,
+      comment_total: raw<number>`coalesce(sum(${threads.comment_count}), 0)::int`,
+    })
+    .from(threads)
+    .where(
+      and(
+        eq(threads.subject_type, "task" as never),
+        eq(threads.subject_id, taskId),
+      ),
+    );
+  return rows[0] ?? { thread_count: 0, comment_total: 0 };
 }
 
 export async function subjectExists(

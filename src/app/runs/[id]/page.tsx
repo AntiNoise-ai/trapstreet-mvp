@@ -151,6 +151,14 @@ export default async function RunDetailPage({
           </table>
         </section>
       )}
+
+      <section className="mt-10 border-t border-[var(--border)] pt-6 text-xs text-[var(--muted)]">
+        <Link
+          href={`/threads?subject_type=run&subject_id=${run.id}`}
+        >
+          discuss this run →
+        </Link>
+      </section>
     </div>
   );
 }

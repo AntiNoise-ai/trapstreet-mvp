@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
+import { auth } from "@/auth";
 import {
-  authSolution,
   createThread,
+  ensureUserRow,
   listThreads,
   subjectExists,
 } from "@/lib/queries";
@@ -22,8 +23,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: Request) {
-  const solution = await authSolution(req.headers.get("authorization"));
-  if (!solution) return ERR.unauthorized();
+  // Forum posting goes through user session, not solution token —
+  // discussion is between humans.
+  const session = await auth();
+  if (!session?.user) return ERR.unauthorized();
 
   let body: unknown;
   try {
@@ -50,9 +53,22 @@ export async function POST(req: Request) {
     return ERR.invalid(`subject ${subject.type}/${subject.id} does not exist`);
   }
 
+  // Stale JWT survival, same pattern as POST /api/tasks.
+  try {
+    await ensureUserRow(session.user.id, {
+      name: session.user.name,
+      email: session.user.email,
+      image: session.user.image,
+    });
+  } catch (e) {
+    return ERR.internal(
+      e instanceof Error ? e.message : "could not ensure user row",
+    );
+  }
+
   const thread = await createThread({
     title,
-    author_id: solution.id,
+    author_id: session.user.id,
     subject_type: subject.type,
     subject_id: subject.id,
     body: firstPostBody,
