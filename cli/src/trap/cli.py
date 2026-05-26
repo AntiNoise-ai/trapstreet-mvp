@@ -1,17 +1,15 @@
 from __future__ import annotations
 
+import os
+import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Annotated
 
 import typer
 from rich.console import Console
 
-from trap.auth import (
-    DEFAULT_SERVER,
-    AuthStore,
-    OAuthCallbackServer,
-    SubmitClient,
-)
+from trap.auth import DEFAULT_SERVER, ApiClient, AuthStore, BrowserProvider, TokenProvider
 from trap.display import CaseProgress, render_submit_result
 from trap.git_meta import detect_metadata
 from trap.loader import TrapLoader, TrapTaskLoader
@@ -19,24 +17,26 @@ from trap.report import OutputFormat, ReportHandle, renderer_factory
 from trap.runner import TaskRunner
 
 app = typer.Typer(help="AI prompt / agent / workflow / testing framework.")
+auth_app = typer.Typer(help="Manage authentication.")
+app.add_typer(auth_app, name="auth")
 console = Console()
 
 
 @app.command()
 def run(
-    task: str | None = typer.Argument(None),
-    trap_yaml_path: Path = typer.Option(Path("trap.yaml"), "--config", "-c"),
-    tags: list[str] = typer.Option([], "--tag", "-t"),
-    output: OutputFormat = typer.Option(OutputFormat.rich, "--output", "-o"),
-    fail_fast: bool = typer.Option(False, "--fail-fast"),
-    workspace: Path = typer.Option(Path(".trap"), "--workspace", "-w"),
+    task: Annotated[str | None, typer.Argument()] = None,
+    trap_yaml_path: Annotated[Path, typer.Option("--config", "-c")] = Path("trap.yaml"),
+    tags: Annotated[list[str] | None, typer.Option("--tag", "-t")] = None,
+    output: Annotated[OutputFormat, typer.Option("--output", "-o")] = OutputFormat.rich,
+    fail_fast: Annotated[bool, typer.Option("--fail-fast")] = False,
+    workspace: Annotated[Path, typer.Option("--workspace", "-w")] = Path(".trap"),
 ) -> None:
     """Run a task against a solution."""
     trap_yaml_loader = TrapLoader(trap_yaml_path)
     task_obj = trap_yaml_loader.resolve_task(task)
 
     task_yaml_loader = TrapTaskLoader.from_task(task_obj, trap_yaml_loader.trap_dir)
-    active_cases = task_yaml_loader.cases_with_tags(tags)
+    active_cases = task_yaml_loader.cases_with_tags(tags or [])
 
     started_at = datetime.now()
     ts = started_at.isoformat(timespec="seconds")
@@ -80,11 +80,11 @@ def run(
 
 @app.command()
 def report(
-    task: str | None = typer.Argument(None),
-    run: str = typer.Argument("latest"),
-    trap_yaml_path: Path = typer.Option(Path("trap.yaml"), "--config", "-c"),
-    output: OutputFormat = typer.Option(OutputFormat.rich, "--output", "-o"),
-    workspace: Path = typer.Option(Path(".trap"), "--workspace", "-w"),
+    task: Annotated[str | None, typer.Argument()] = None,
+    run: Annotated[str, typer.Argument()] = "latest",
+    trap_yaml_path: Annotated[Path, typer.Option("--config", "-c")] = Path("trap.yaml"),
+    output: Annotated[OutputFormat, typer.Option("--output", "-o")] = OutputFormat.rich,
+    workspace: Annotated[Path, typer.Option("--workspace", "-w")] = Path(".trap"),
 ) -> None:
     """Display a report for a task (defaults to latest run)."""
     trap_yaml_loader = TrapLoader(trap_yaml_path)
@@ -93,44 +93,61 @@ def report(
     renderer_factory(output).render(report_data)
 
 
-@app.command()
-def login(
-    server: str | None = typer.Option(
-        None,
-        "--server",
-        envvar="TRAPSTREET_URL",
-        help="Trapstreet server URL.",
-    ),
-    timeout: int = typer.Option(300, "--timeout", help="Seconds to wait for browser approval."),
+@auth_app.command("login")
+def auth_login(
+    server: Annotated[
+        str | None,
+        typer.Option("--server", envvar="TRAPSTREET_URL", help="Trapstreet server URL."),
+    ] = None,
+    timeout: Annotated[int, typer.Option("--timeout", help="Seconds to wait for browser approval.")] = 300,
+    with_token: Annotated[
+        bool,
+        typer.Option("--with-token", help="Read api_key from stdin instead of opening a browser."),
+    ] = False,
 ) -> None:
-    """Open the browser to authorize this machine; save api_key locally.
+    """Authenticate this machine with Trapstreet.
 
-    Starts a temporary HTTP server on localhost, opens
-    <server>/cli/authorize?return=http://localhost:<port>/callback in your
-    browser, and waits for the redirect back with the api_key.
+    By default opens a browser to complete OAuth. Pass --with-token to supply
+    an api_key directly (useful for CI or headless environments).
 
     The token is saved to ~/.config/trapstreet/auth.json (mode 600).
-    Subsequent `tp submit` calls read from there automatically — no env
-    var needed (but TRAPSTREET_API_KEY still works as an override).
     """
-    auth_store = AuthStore()
-    stored = auth_store.load()
-    # priority: --server / TRAPSTREET_URL env > auth.json > default
-    resolved_server_url = server or (stored.server if stored else None) or DEFAULT_SERVER
-    callback_server = OAuthCallbackServer(resolved_server_url)
-    console.print(f"opening [link={callback_server.auth_url}]{callback_server.auth_url}[/link]")
-    if not callback_server.run(timeout):
-        console.print(f"[red]timed out after {timeout}s[/red] waiting for browser approval")
-        raise typer.Exit(code=2)
-    auth_data = callback_server.auth_data
-    assert auth_data is not None
-    path = auth_store.save(auth_data)
-    sol_hint = f" · solution [bold]{auth_data.solution}[/bold]" if auth_data.solution else ""
-    console.print(f"[green]✓ logged in[/green]{sol_hint} · token saved to {path}")
+    stored = AuthStore().load()
+    # priority: --server / TRAPSTREET_URL > stored > default
+    resolved_server = server or (stored.server if stored else None) or DEFAULT_SERVER
+
+    if with_token:
+        if sys.stdin.isatty():
+            token = typer.prompt("API key", hide_input=True)
+        else:
+            token = sys.stdin.read().strip()
+        provider = TokenProvider(resolved_server, token)
+    else:
+        if server and server != DEFAULT_SERVER:
+            console.print(
+                f"[red]error[/red]: browser login is only supported on {DEFAULT_SERVER}. "
+                "Use --with-token for custom servers."
+            )
+            raise typer.Exit(code=2)
+        provider = BrowserProvider(resolved_server, timeout)
+
+    console.print(provider.pre_message)
+    try:
+        auth_data = provider.acquire()
+    except (ValueError, TimeoutError) as e:
+        console.print(f"[red]error[/red]: {e}")
+        raise typer.Exit(code=2) from None
+
+    path = AuthStore().save(auth_data)
+    console.print(
+        "[green]✓ logged in[/green]"
+        + (f" · solution [bold]{auth_data.solution}[/bold]" if auth_data.solution else "")
+        + f" · token saved to {path}"
+    )
 
 
-@app.command()
-def logout() -> None:
+@auth_app.command("logout")
+def auth_logout() -> None:
     """Delete the locally-stored api_key."""
     auth_store = AuthStore()
     if not auth_store.exists:
@@ -140,41 +157,57 @@ def logout() -> None:
     console.print(f"[green]✓[/green] removed {auth_store.PATH}")
 
 
+@auth_app.command("status")
+def auth_status(
+    verify: Annotated[
+        bool,
+        typer.Option("--verify/--no-verify", help="Ping server to verify token validity."),
+    ] = True,
+) -> None:
+    """Show current authentication state."""
+    stored = AuthStore().load()
+    if not stored:
+        console.print("[red]not logged in[/red]. Run [bold]tp auth login[/bold].")
+        raise typer.Exit(code=1)
+
+    console.print(f"  server    {stored.server}")
+    if stored.solution:
+        console.print(f"  solution  [bold]{stored.solution}[/bold]")
+
+    if not verify:
+        return
+
+    client = ApiClient(stored.server, stored.api_key)
+    me = client.get_me()
+    user = me.get("user") or {}
+    identity = user.get("name") or user.get("email") or "(unknown)"
+    console.print(f"  user      {identity}\n[green]✓ token is valid[/green]")
+
+
 @app.command()
 def submit(
-    task: str | None = typer.Argument(
-        None,
-        help="Task name (defaults to first task in trap.yaml). "
-        "Used as both the local run dir and the trapstreet task_id.",
-    ),
-    trap_yaml_path: Path = typer.Option(Path("trap.yaml"), "--config", "-c"),
-    workspace: Path = typer.Option(Path(".trap"), "--workspace", "-w"),
-    run: str = typer.Option("latest", "--run", "-r", help="Which run to upload (default: latest)."),
-    server: str | None = typer.Option(
-        None,
-        "--server",
-        envvar="TRAPSTREET_URL",
-        help="Trapstreet server URL.",
-    ),
-    api_key: str | None = typer.Option(
-        None,
-        "--api-key",
-        envvar="TRAPSTREET_API_KEY",
-        help="Solution api_key. Falls back to TRAPSTREET_API_KEY env, "
-        "then ~/.config/trapstreet/auth.json (see `tp login`).",
-    ),
+    task: Annotated[
+        str | None,
+        typer.Argument(
+            help="Task name (defaults to first task in trap.yaml). "
+            "Used as both the local run dir and the trapstreet task_id.",
+        ),
+    ] = None,
+    trap_yaml_path: Annotated[Path, typer.Option("--config", "-c")] = Path("trap.yaml"),
+    workspace: Annotated[Path, typer.Option("--workspace", "-w")] = Path(".trap"),
+    run: Annotated[str, typer.Option("--run", "-r", help="Which run to upload.")] = "latest",
 ) -> None:
     """Upload the latest report.json to trapstreet."""
-    auth_store = AuthStore()
-    stored = auth_store.load()
-    # priority: --server / TRAPSTREET_URL env > auth.json > default
-    resolved_server_url = server or (stored.server if stored else None) or DEFAULT_SERVER
-    # priority: --api-key / TRAPSTREET_API_KEY env > auth.json
-    resolved_key = api_key or (stored.api_key if stored else None)
+    stored = AuthStore().load()
+    # priority: TRAPSTREET_URL env > stored > default
+    resolved_server = (
+        os.environ.get("TRAPSTREET_URL") or (stored.server if stored else None) or DEFAULT_SERVER
+    )
+    # priority: TRAPSTREET_API_KEY env > stored
+    resolved_key = os.environ.get("TRAPSTREET_API_KEY") or (stored.api_key if stored else None)
     if not resolved_key:
         console.print(
-            "[red]not logged in[/red]. Run [bold]tp login[/bold] "
-            "or set [bold]TRAPSTREET_API_KEY[/bold] / pass [bold]--api-key[/bold]."
+            "[red]not logged in[/red]. Run [bold]tp auth login[/bold] or set [bold]TRAPSTREET_API_KEY[/bold]."
         )
         raise typer.Exit(code=2)
 
@@ -189,7 +222,7 @@ def submit(
         )
         raise typer.Exit(code=2) from None
 
-    client = SubmitClient(resolved_server_url, resolved_key)
+    client = ApiClient(resolved_server, resolved_key)
     resp_data = client.submit(task_name, report_handle.report_json_path)
     render_submit_result(resp_data)
 

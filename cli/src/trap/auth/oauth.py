@@ -7,7 +7,7 @@ import urllib.parse
 import webbrowser
 from typing import Any
 
-from trap.auth.credentials import AuthData
+from trap.auth.store import AuthData
 
 
 class _CallbackHandler(http.server.BaseHTTPRequestHandler):
