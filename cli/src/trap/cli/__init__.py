@@ -104,8 +104,26 @@ def submit(
     trap_yaml_path: Annotated[Path, typer.Option("--config", "-c")] = Path("trap.yaml"),
     workspace: Annotated[Path, typer.Option("--workspace", "-w")] = Path(".trap"),
     run: Annotated[str, typer.Option("--run", "-r", help="Which run to upload.")] = "latest",
+    report: Annotated[
+        Path | None,
+        typer.Option(
+            "--report",
+            help=(
+                "Submit this report.json file directly, skipping trap.yaml + "
+                "workspace resolution. Used by skills / external runners that "
+                "produced a report outside the normal `tp run` workflow. "
+                "Requires the task argument (we can't infer it without trap.yaml)."
+            ),
+        ),
+    ] = None,
 ) -> None:
-    """Upload the latest report.json to trapstreet."""
+    """Upload a report.json to trapstreet.
+
+    Default mode: read from the .trap/<task>/<run>/report.json workspace that
+    `tp run` populated. Pass `--report <path>` to upload an arbitrary
+    report.json instead — handy for Claude Code skills and external runners
+    that build the wire format themselves.
+    """
     stored = AuthStore().load()
     # priority: TRAPSTREET_URL env > stored > default
     resolved_server = (
@@ -119,19 +137,33 @@ def submit(
         )
         raise typer.Exit(code=2)
 
-    task_name = TrapLoader(trap_yaml_path).resolve_task(task).name
-
-    report_handle = ReportHandle(workspace.resolve(), task_name, run)
-    try:
-        report_handle.assert_exists()
-    except FileNotFoundError:
-        console.print(
-            f"[red]error[/red]: no report at {report_handle.report_json_path}. Run [bold]tp run[/bold] first."
-        )
-        raise typer.Exit(code=2) from None
+    # Two paths: direct `--report` (skip workspace) vs default workspace lookup.
+    if report is not None:
+        if not task:
+            console.print(
+                "[red]error[/red]: passing [bold]--report[/bold] requires the "
+                "task argument (no trap.yaml to infer it from)."
+            )
+            raise typer.Exit(code=2)
+        if not report.exists():
+            console.print(f"[red]error[/red]: no file at {report}")
+            raise typer.Exit(code=2)
+        task_name = task
+        report_path = report
+    else:
+        task_name = TrapLoader(trap_yaml_path).resolve_task(task).name
+        report_handle = ReportHandle(workspace.resolve(), task_name, run)
+        try:
+            report_handle.assert_exists()
+        except FileNotFoundError:
+            console.print(
+                f"[red]error[/red]: no report at {report_handle.report_json_path}. Run [bold]tp run[/bold] first."
+            )
+            raise typer.Exit(code=2) from None
+        report_path = report_handle.report_json_path
 
     client = ApiClient(resolved_server, resolved_key)
-    resp_data = client.submit(task_name, report_handle.report_json_path)
+    resp_data = client.submit(task_name, report_path)
     render_submit_result(resp_data)
 
 
